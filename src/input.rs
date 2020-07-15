@@ -1,12 +1,22 @@
+#[cfg(feature = "http")]
+use crate::is_http;
 use crate::Result;
 use std::convert::TryFrom;
 use std::ffi::OsStr;
 use std::fs::File;
 use std::io::{self, Read, Result as IoResult};
 
+#[cfg(feature = "http")]
+pub struct Http {
+    size: Option<u64>,
+    reader: Box<dyn io::Read>,
+}
+
 pub enum Input {
     Pipe,
     File(File),
+    #[cfg(feature = "http")]
+    Http(Http),
 }
 
 impl Input {
@@ -15,6 +25,10 @@ impl Input {
         if path == "-" {
             Ok(Input::Pipe)
         } else {
+            #[cfg(feature = "http")]
+            if is_http(path) {
+                return Ok(Input::Http(Http::new(path)?));
+            }
             Ok(Input::File(File::open(path)?))
         }
     }
@@ -39,6 +53,8 @@ impl Input {
         match self {
             Input::Pipe => None,
             Input::File(file) => file.metadata().ok().map(|x| x.len()),
+            #[cfg(feature = "http")]
+            Input::Http(Http { size, .. }) => *size,
         }
     }
 
@@ -56,11 +72,32 @@ impl Input {
     }
 }
 
+#[cfg(feature = "http")]
+impl Http {
+    fn new(path: &OsStr) -> Result<Self> {
+        let resp = ureq::get(&path.to_string_lossy()).call();
+
+        // .ok() tells if response is 200-299.
+        if !resp.ok() {
+            return Err((&resp).into());
+        }
+        let size = resp
+            .header("content-length")
+            .and_then(|x| x.parse::<u64>().ok());
+        Ok(Http {
+            size,
+            reader: Box::new(resp.into_reader()),
+        })
+    }
+}
+
 impl Read for Input {
     fn read(&mut self, buf: &mut [u8]) -> IoResult<usize> {
         match self {
             Input::Pipe => io::stdin().read(buf),
             Input::File(file) => file.read(buf),
+            #[cfg(feature = "http")]
+            Input::Http(Http { reader, .. }) => reader.read(buf),
         }
     }
 }
