@@ -1,4 +1,5 @@
 use std::convert::From;
+use std::ffi::{OsStr, OsString};
 use std::fmt::Display;
 use std::io::Error as IoError;
 
@@ -8,6 +9,17 @@ pub enum Error {
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
+
+impl Error {
+    pub(crate) fn to_os_string(&self, path: &OsStr) -> OsString {
+        let mut str = OsString::new();
+        str.push("Error opening ");
+        str.push(path);
+        str.push(": ");
+        str.push(self.to_string());
+        str
+    }
+}
 
 impl From<IoError> for Error {
     fn from(err: IoError) -> Self {

@@ -1,4 +1,5 @@
 use crate::Result;
+use std::convert::TryFrom;
 use std::ffi::OsStr;
 use std::fs::File;
 use std::io::{self, Read, Result as IoResult};
@@ -16,6 +17,12 @@ impl Input {
         } else {
             Ok(Input::File(File::open(path)?))
         }
+    }
+
+    /// Contructs a new input either by opening the file or for '-' returning stdin
+    /// The error is converted to a OsString so that stuctopt can show it to the user
+    pub fn try_from_os_str(path: &OsStr) -> std::result::Result<Self, std::ffi::OsString> {
+        TryFrom::try_from(path)
     }
 
     /// If input is a file, returns the size of the file, in bytes
@@ -55,5 +62,12 @@ impl Read for Input {
             Input::Pipe => io::stdin().read(buf),
             Input::File(file) => file.read(buf),
         }
+    }
+}
+
+impl TryFrom<&OsStr> for Input {
+    type Error = std::ffi::OsString;
+    fn try_from(file_name: &OsStr) -> std::result::Result<Self, std::ffi::OsString> {
+        Input::new(file_name).map_err(|e| e.to_os_string(file_name))
     }
 }
