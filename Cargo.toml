@@ -10,4 +10,8 @@ documentation = "https://docs.rs/clio"
 readme = "README.md"
 edition = "2018"
 
+[features]
+http = ["ureq"]
+
 [dependencies]
+ureq = { git = "https://github.com/aj-bagwell/ureq", rev = "bf808ba0b6519a9ac5bb2156a6e0cc69f1868401", optional = true }
