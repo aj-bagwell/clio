@@ -9,6 +9,7 @@ pub enum Input {
 }
 
 impl Input {
+    /// Contructs a new input either by opening the file or for '-' returning stdin
     pub fn new(path: &OsStr) -> Result<Self> {
         if path == "-" {
             Ok(Input::Pipe)
@@ -17,6 +18,16 @@ impl Input {
         }
     }
 
+    /// If input is a file, returns the size of the file, in bytes
+    /// otherwise if input is stdin returns none.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// let file = clio::Input::new("foo.txt")?;
+    ///
+    /// assert_eq(Some(0), file.len());
+    /// ```
     pub fn len(&self) -> Option<u64> {
         match self {
             Input::Pipe => None,
@@ -24,6 +35,15 @@ impl Input {
         }
     }
 
+    /// Returns a boolean saying if the file is empty, if using stdin returns None
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// let file = clio::Input::new("foo.txt")?;
+    ///
+    /// assert_eq(Some(true), file.is_empty());
+    /// ```
     pub fn is_empty(&self) -> Option<bool> {
         self.len().map(|l| l == 0)
     }

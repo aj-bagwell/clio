@@ -10,6 +10,7 @@ pub enum Output {
 }
 
 impl Output {
+    /// Contructs a new output either by opening/creating the file or for '-' returning stdout
     pub fn new(path: &OsStr) -> Result<Self> {
         if path == "-" {
             Ok(Output::Pipe)
