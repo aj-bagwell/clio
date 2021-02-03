@@ -2,19 +2,23 @@
 use crate::is_http;
 use crate::Result;
 use std::convert::TryFrom;
-use std::ffi::OsStr;
+use std::ffi::{OsStr, OsString};
+use std::fmt::{self, Debug, Display};
 use std::fs::File;
 use std::io::{self, Read, Result as IoResult};
 
 #[cfg(feature = "http")]
+#[derive(Debug)]
 pub struct Http {
+    url: String,
     size: Option<u64>,
     reader: Box<dyn io::Read>,
 }
 
+#[derive(Debug)]
 pub enum Input {
     Pipe,
-    File(File),
+    File(OsString, File),
     #[cfg(feature = "http")]
     Http(Http),
 }
@@ -29,7 +33,7 @@ impl Input {
             if is_http(path) {
                 return Ok(Input::Http(Http::new(path)?));
             }
-            Ok(Input::File(File::open(path)?))
+            Ok(Input::File(path.to_os_string(), File::open(path)?))
         }
     }
 
@@ -52,7 +56,7 @@ impl Input {
     pub fn len(&self) -> Option<u64> {
         match self {
             Input::Pipe => None,
-            Input::File(file) => file.metadata().ok().map(|x| x.len()),
+            Input::File(_, file) => file.metadata().ok().map(|x| x.len()),
             #[cfg(feature = "http")]
             Input::Http(Http { size, .. }) => *size,
         }
@@ -75,7 +79,8 @@ impl Input {
 #[cfg(feature = "http")]
 impl Http {
     fn new(path: &OsStr) -> Result<Self> {
-        let resp = ureq::get(&path.to_string_lossy()).call();
+        let url = path.to_string_lossy().to_string();
+        let resp = ureq::get(&url).call();
 
         // .ok() tells if response is 200-299.
         if !resp.ok() {
@@ -85,6 +90,7 @@ impl Http {
             .header("content-length")
             .and_then(|x| x.parse::<u64>().ok());
         Ok(Http {
+            url,
             size,
             reader: Box::new(resp.into_reader()),
         })
@@ -95,7 +101,7 @@ impl Read for Input {
     fn read(&mut self, buf: &mut [u8]) -> IoResult<usize> {
         match self {
             Input::Pipe => io::stdin().read(buf),
-            Input::File(file) => file.read(buf),
+            Input::File(_, file) => file.read(buf),
             #[cfg(feature = "http")]
             Input::Http(Http { reader, .. }) => reader.read(buf),
         }
@@ -106,5 +112,16 @@ impl TryFrom<&OsStr> for Input {
     type Error = std::ffi::OsString;
     fn try_from(file_name: &OsStr) -> std::result::Result<Self, std::ffi::OsString> {
         Input::new(file_name).map_err(|e| e.to_os_string(file_name))
+    }
+}
+
+impl Display for Input {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Input::Pipe => write!(fmt, "-"),
+            Input::File(path, _) => write!(fmt, "{:?}", path),
+            #[cfg(feature = "http")]
+            Input::Http(Http { url, .. }) => write!(fmt, "{}", url),
+        }
     }
 }

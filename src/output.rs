@@ -1,7 +1,7 @@
 use crate::Result;
 use std::convert::TryFrom;
-use std::ffi::OsStr;
-use std::fmt::Debug;
+use std::ffi::{OsStr, OsString};
+use std::fmt::{self, Debug, Display};
 use std::fs::{File, OpenOptions};
 use std::io::{self, Result as IoResult, Write};
 
@@ -11,7 +11,7 @@ use {crate::is_http, crate::Error, ureq::Request, ureq::RequestWrite};
 #[derive(Debug)]
 pub enum Output {
     Pipe,
-    File(File),
+    File(OsString, File),
     #[cfg(feature = "http")]
     Http(Box<RequestWrite>),
 }
@@ -19,7 +19,7 @@ pub enum Output {
 #[derive(Debug)]
 pub enum SizedOutput {
     Pipe,
-    File(File),
+    File(OsString, File),
     #[cfg(feature = "http")]
     Http(Box<Request>),
 }
@@ -34,7 +34,7 @@ impl Output {
             if is_http(path) {
                 return Ok(Output::Http(Box::new(new_put_req(&path)?.into_write()?)));
             }
-            Ok(Output::File(open_rw(path)?))
+            Ok(Output::File(path.to_os_string(), open_rw(path)?))
         }
     }
 
@@ -49,7 +49,7 @@ impl Output {
     pub fn finish(self) -> Result<()> {
         match self {
             Output::Pipe => Ok(()),
-            Output::File(file) => Ok(file.sync_data()?),
+            Output::File(_, file) => Ok(file.sync_data()?),
             #[cfg(feature = "http")]
             Output::Http(http) => {
                 let resp = http.finish();
@@ -67,7 +67,7 @@ impl Write for Output {
     fn flush(&mut self) -> IoResult<()> {
         match self {
             Output::Pipe => io::stdout().flush(),
-            Output::File(file) => file.flush(),
+            Output::File(_, file) => file.flush(),
             #[cfg(feature = "http")]
             Output::Http(http) => http.flush(),
         }
@@ -75,7 +75,7 @@ impl Write for Output {
     fn write(&mut self, buf: &[u8]) -> IoResult<usize> {
         match self {
             Output::Pipe => io::stdout().write(buf),
-            Output::File(file) => file.write(buf),
+            Output::File(_, file) => file.write(buf),
             #[cfg(feature = "http")]
             Output::Http(http) => http.write(buf),
         }
@@ -99,7 +99,7 @@ impl SizedOutput {
             if is_http(path) {
                 return Ok(SizedOutput::Http(Box::new(new_put_req(&path)?)));
             }
-            Ok(SizedOutput::File(open_rw(path)?))
+            Ok(SizedOutput::File(path.to_os_string(), open_rw(path)?))
         }
     }
 
@@ -113,9 +113,9 @@ impl SizedOutput {
     pub fn with_len(self, size: u64) -> Result<Output> {
         match self {
             SizedOutput::Pipe => Ok(Output::Pipe),
-            SizedOutput::File(file) => {
+            SizedOutput::File(path, file) => {
                 file.set_len(size)?;
-                Ok(Output::File(file))
+                Ok(Output::File(path, file))
             }
             #[cfg(feature = "http")]
             SizedOutput::Http(mut req) => {
@@ -129,7 +129,7 @@ impl SizedOutput {
     pub fn without_len(self) -> Result<Output> {
         Ok(match self {
             SizedOutput::Pipe => Output::Pipe,
-            SizedOutput::File(file) => Output::File(file),
+            SizedOutput::File(path, file) => Output::File(path, file),
             #[cfg(feature = "http")]
             SizedOutput::Http(req) => Output::Http(Box::new(req.into_write()?)),
         })
@@ -169,5 +169,27 @@ fn new_put_req(url: &OsStr) -> Result<Request> {
             code: 400,
             message: "url is not a valid UTF8 string".to_string(),
         })
+    }
+}
+
+impl Display for Output {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Output::Pipe => write!(fmt, "-"),
+            Output::File(path, _) => write!(fmt, "{:?}", path),
+            #[cfg(feature = "http")]
+            Output::Http(request) => write!(fmt, "{}", request.url()),
+        }
+    }
+}
+
+impl Display for SizedOutput {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            SizedOutput::Pipe => write!(fmt, "-"),
+            SizedOutput::File(path, _) => write!(fmt, "{:?}", path),
+            #[cfg(feature = "http")]
+            SizedOutput::Http(request) => write!(fmt, "{}", request.url()),
+        }
     }
 }
