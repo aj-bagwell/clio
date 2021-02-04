@@ -5,6 +5,7 @@ use std::io::Error as IoError;
 #[cfg(feature = "http")]
 use std::io::ErrorKind;
 
+/// Any error that happens when opening a stream.
 #[derive(Debug)]
 pub enum Error {
     Io(IoError),
