@@ -26,7 +26,8 @@ pub enum SizedOutput {
 
 impl Output {
     /// Contructs a new output either by opening/creating the file or for '-' returning stdout
-    pub fn new(path: &OsStr) -> Result<Self> {
+    pub fn new<S: AsRef<OsStr>>(path: S) -> Result<Self> {
+        let path = path.as_ref();
         if path == "-" {
             Ok(Output::Pipe)
         } else {
@@ -91,7 +92,8 @@ impl TryFrom<&OsStr> for Output {
 
 impl SizedOutput {
     /// Contructs a new output either by opening/creating the file or for '-' returning stdout
-    pub fn new(path: &OsStr) -> Result<Self> {
+    pub fn new<S: AsRef<OsStr>>(path: S) -> Result<Self> {
+        let path = path.as_ref();
         if path == "-" {
             Ok(SizedOutput::Pipe)
         } else {
