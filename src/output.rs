@@ -8,6 +8,8 @@ use std::io::{self, Result as IoResult, Write};
 #[cfg(feature = "http")]
 use {crate::is_http, crate::Error, ureq::Request, ureq::RequestWrite};
 
+/// An enum that represents a command line output stream,
+/// either std out or a file
 #[derive(Debug)]
 pub enum Output {
     Pipe,
@@ -16,6 +18,8 @@ pub enum Output {
     Http(Box<RequestWrite>),
 }
 
+/// A builder for [Output](crate::Output) that allows setting the size before writing.
+/// This is mostly usefull with the "http" feature for setting the Content-Length header
 #[derive(Debug)]
 pub enum SizedOutput {
     Pipe,
@@ -127,7 +131,7 @@ impl SizedOutput {
         }
     }
 
-    // convert to an normal output without setting the lenght
+    // convert to an normal output without setting the length
     pub fn without_len(self) -> Result<Output> {
         Ok(match self {
             SizedOutput::Pipe => Output::Pipe,

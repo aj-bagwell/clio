@@ -15,6 +15,8 @@ pub struct Http {
     reader: Box<dyn io::Read>,
 }
 
+/// An enum that represents a command line input stream,
+/// either std in or a file
 #[derive(Debug)]
 pub enum Input {
     Pipe,
