@@ -25,7 +25,8 @@ pub enum Input {
 
 impl Input {
     /// Contructs a new input either by opening the file or for '-' returning stdin
-    pub fn new(path: &OsStr) -> Result<Self> {
+    pub fn new<S: AsRef<OsStr>>(path: S) -> Result<Self> {
+        let path = path.as_ref();
         if path == "-" {
             Ok(Input::Pipe)
         } else {
@@ -49,9 +50,9 @@ impl Input {
     /// # Examples
     ///
     /// ```no_run
-    /// let file = clio::Input::new("foo.txt")?;
+    /// let file = clio::Input::new("foo.txt").unwrap();
     ///
-    /// assert_eq(Some(0), file.len());
+    /// assert_eq!(Some(3), file.len());
     /// ```
     pub fn len(&self) -> Option<u64> {
         match self {
@@ -67,9 +68,9 @@ impl Input {
     /// # Examples
     ///
     /// ```no_run
-    /// let file = clio::Input::new("foo.txt")?;
+    /// let file = clio::Input::new("foo.txt").unwrap();
     ///
-    /// assert_eq(Some(true), file.is_empty());
+    /// assert_eq!(Some(true), file.is_empty());
     /// ```
     pub fn is_empty(&self) -> Option<bool> {
         self.len().map(|l| l == 0)

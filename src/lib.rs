@@ -7,9 +7,10 @@
 //! ```
 //! // a cat replacement
 //! fn main() -> clio::Result<()> {
-//!   let args: Vec<_> = std::env::args_os().collect();
-//!   let mut input = clio::Input::new(&args[1])?;
-//!   std::io::copy(&mut input, &mut std::io::stdout())?;
+//!   for arg in std::env::args_os() {
+//!     let mut input = clio::Input::new(&arg)?;
+//!     std::io::copy(&mut input, &mut std::io::stdout())?;
+//!   }
 //!   Ok(())
 //! }
 //! ```
