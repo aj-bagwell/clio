@@ -1,19 +1,11 @@
 #[cfg(feature = "http")]
-use crate::is_http;
+use crate::http::{is_http, try_to_url, HttpReader};
 use crate::Result;
 use std::convert::TryFrom;
 use std::ffi::{OsStr, OsString};
 use std::fmt::{self, Debug, Display};
 use std::fs::File;
 use std::io::{self, Read, Result as IoResult};
-
-#[cfg(feature = "http")]
-#[derive(Debug)]
-pub struct Http {
-    url: String,
-    size: Option<u64>,
-    reader: Box<dyn io::Read>,
-}
 
 /// An enum that represents a command line input stream,
 /// either std in or a file
@@ -22,7 +14,7 @@ pub enum Input {
     Pipe,
     File(OsString, File),
     #[cfg(feature = "http")]
-    Http(Http),
+    Http(String, HttpReader),
 }
 
 impl Input {
@@ -34,7 +26,9 @@ impl Input {
         } else {
             #[cfg(feature = "http")]
             if is_http(path) {
-                return Ok(Input::Http(Http::new(path)?));
+                let url = try_to_url(path)?;
+                let reader = HttpReader::new(&url)?;
+                return Ok(Input::Http(url, reader));
             }
             Ok(Input::File(path.to_os_string(), File::open(path)?))
         }
@@ -61,7 +55,7 @@ impl Input {
             Input::Pipe => None,
             Input::File(_, file) => file.metadata().ok().map(|x| x.len()),
             #[cfg(feature = "http")]
-            Input::Http(Http { size, .. }) => *size,
+            Input::Http(_, http) => http.len(),
         }
     }
 
@@ -79,34 +73,13 @@ impl Input {
     }
 }
 
-#[cfg(feature = "http")]
-impl Http {
-    fn new(path: &OsStr) -> Result<Self> {
-        let url = path.to_string_lossy().to_string();
-        let resp = ureq::get(&url).call();
-
-        // .ok() tells if response is 200-299.
-        if !resp.ok() {
-            return Err((&resp).into());
-        }
-        let size = resp
-            .header("content-length")
-            .and_then(|x| x.parse::<u64>().ok());
-        Ok(Http {
-            url,
-            size,
-            reader: Box::new(resp.into_reader()),
-        })
-    }
-}
-
 impl Read for Input {
     fn read(&mut self, buf: &mut [u8]) -> IoResult<usize> {
         match self {
             Input::Pipe => io::stdin().read(buf),
             Input::File(_, file) => file.read(buf),
             #[cfg(feature = "http")]
-            Input::Http(Http { reader, .. }) => reader.read(buf),
+            Input::Http(_, reader) => reader.read(buf),
         }
     }
 }
@@ -124,7 +97,7 @@ impl Display for Input {
             Input::Pipe => write!(fmt, "-"),
             Input::File(path, _) => write!(fmt, "{:?}", path),
             #[cfg(feature = "http")]
-            Input::Http(Http { url, .. }) => write!(fmt, "{}", url),
+            Input::Http(url, _) => write!(fmt, "{}", url),
         }
     }
 }

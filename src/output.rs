@@ -6,7 +6,7 @@ use std::fs::{File, OpenOptions};
 use std::io::{self, Result as IoResult, Write};
 
 #[cfg(feature = "http")]
-use {crate::is_http, crate::Error, ureq::Request, ureq::RequestWrite};
+use crate::http::{is_http, try_to_url, HttpWriter};
 
 /// An enum that represents a command line output stream,
 /// either std out or a file
@@ -15,7 +15,7 @@ pub enum Output {
     Pipe,
     File(OsString, File),
     #[cfg(feature = "http")]
-    Http(Box<RequestWrite>),
+    Http(String, Box<HttpWriter>),
 }
 
 /// A builder for [Output](crate::Output) that allows setting the size before writing.
@@ -25,22 +25,13 @@ pub enum SizedOutput {
     Pipe,
     File(OsString, File),
     #[cfg(feature = "http")]
-    Http(Box<Request>),
+    Http(String),
 }
 
 impl Output {
     /// Contructs a new output either by opening/creating the file or for '-' returning stdout
     pub fn new<S: AsRef<OsStr>>(path: S) -> Result<Self> {
-        let path = path.as_ref();
-        if path == "-" {
-            Ok(Output::Pipe)
-        } else {
-            #[cfg(feature = "http")]
-            if is_http(path) {
-                return Ok(Output::Http(Box::new(new_put_req(&path)?.into_write()?)));
-            }
-            Ok(Output::File(path.to_os_string(), open_rw(path)?))
-        }
+        SizedOutput::new(path)?.without_len()
     }
 
     /// Contructs a new output either by opening/creating the file or for '-' returning stdout
@@ -51,19 +42,13 @@ impl Output {
 
     /// Syncs the file to disk or closes any HTTP connections and returns any errors
     /// or on the file if a regular file
-    pub fn finish(self) -> Result<()> {
+    pub fn finish(mut self) -> Result<()> {
+        self.flush()?;
         match self {
             Output::Pipe => Ok(()),
             Output::File(_, file) => Ok(file.sync_data()?),
             #[cfg(feature = "http")]
-            Output::Http(http) => {
-                let resp = http.finish();
-                if resp.ok() {
-                    Ok(())
-                } else {
-                    Err((&resp).into())
-                }
-            }
+            Output::Http(_, http) => Ok(http.finish()?),
         }
     }
 }
@@ -74,7 +59,7 @@ impl Write for Output {
             Output::Pipe => io::stdout().flush(),
             Output::File(_, file) => file.flush(),
             #[cfg(feature = "http")]
-            Output::Http(http) => http.flush(),
+            Output::Http(_, http) => http.flush(),
         }
     }
     fn write(&mut self, buf: &[u8]) -> IoResult<usize> {
@@ -82,7 +67,7 @@ impl Write for Output {
             Output::Pipe => io::stdout().write(buf),
             Output::File(_, file) => file.write(buf),
             #[cfg(feature = "http")]
-            Output::Http(http) => http.write(buf),
+            Output::Http(_, http) => http.write(buf),
         }
     }
 }
@@ -103,7 +88,7 @@ impl SizedOutput {
         } else {
             #[cfg(feature = "http")]
             if is_http(path) {
-                return Ok(SizedOutput::Http(Box::new(new_put_req(&path)?)));
+                return Ok(SizedOutput::Http(try_to_url(path)?));
             }
             Ok(SizedOutput::File(path.to_os_string(), open_rw(path)?))
         }
@@ -117,36 +102,29 @@ impl SizedOutput {
 
     /// set the length of the file, either as the content-length header of the http put
     pub fn with_len(self, size: u64) -> Result<Output> {
-        match self {
-            SizedOutput::Pipe => Ok(Output::Pipe),
-            SizedOutput::File(path, file) => {
-                file.set_len(size)?;
-                Ok(Output::File(path, file))
-            }
-            #[cfg(feature = "http")]
-            SizedOutput::Http(mut req) => {
-                req.set("Content-Length", &size.to_string());
-                Ok(Output::Http(Box::new(req.into_write()?)))
-            }
-        }
+        self.maybe_with_len(Some(size))
     }
 
     // convert to an normal output without setting the length
     pub fn without_len(self) -> Result<Output> {
-        Ok(match self {
-            SizedOutput::Pipe => Output::Pipe,
-            SizedOutput::File(path, file) => Output::File(path, file),
-            #[cfg(feature = "http")]
-            SizedOutput::Http(req) => Output::Http(Box::new(req.into_write()?)),
-        })
+        self.maybe_with_len(None)
     }
 
     pub fn maybe_with_len(self, size: Option<u64>) -> Result<Output> {
-        if let Some(size) = size {
-            self.with_len(size)
-        } else {
-            self.without_len()
-        }
+        Ok(match self {
+            SizedOutput::Pipe => Output::Pipe,
+            SizedOutput::File(path, file) => {
+                if let Some(size) = size {
+                    file.set_len(size)?;
+                }
+                Output::File(path, file)
+            }
+            #[cfg(feature = "http")]
+            SizedOutput::Http(path) => {
+                let writer = HttpWriter::new(&path, size)?;
+                Output::Http(path, Box::new(writer))
+            }
+        })
     }
 }
 
@@ -166,25 +144,13 @@ fn open_rw(path: &OsStr) -> io::Result<File> {
         .open(path)
 }
 
-#[cfg(feature = "http")]
-fn new_put_req(url: &OsStr) -> Result<Request> {
-    if let Some(str) = url.to_str() {
-        Ok(ureq::put(&str))
-    } else {
-        Err(Error::Ureq {
-            code: 400,
-            message: "url is not a valid UTF8 string".to_string(),
-        })
-    }
-}
-
 impl Display for Output {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Output::Pipe => write!(fmt, "-"),
             Output::File(path, _) => write!(fmt, "{:?}", path),
             #[cfg(feature = "http")]
-            Output::Http(request) => write!(fmt, "{}", request.url()),
+            Output::Http(url, _) => write!(fmt, "{}", url),
         }
     }
 }
@@ -195,7 +161,7 @@ impl Display for SizedOutput {
             SizedOutput::Pipe => write!(fmt, "-"),
             SizedOutput::File(path, _) => write!(fmt, "{:?}", path),
             #[cfg(feature = "http")]
-            SizedOutput::Http(request) => write!(fmt, "{}", request.url()),
+            SizedOutput::Http(url) => write!(fmt, "{}", url),
         }
     }
 }

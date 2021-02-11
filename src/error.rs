@@ -10,7 +10,7 @@ use std::io::ErrorKind;
 pub enum Error {
     Io(IoError),
     #[cfg(feature = "http")]
-    Ureq {
+    Http {
         code: u16,
         message: String,
     },
@@ -40,33 +40,13 @@ impl Into<IoError> for Error {
         match self {
             Error::Io(err) => err,
             #[cfg(feature = "http")]
-            Error::Ureq { code: 404, message } => IoError::new(ErrorKind::NotFound, message),
+            Error::Http { code: 404, message } => IoError::new(ErrorKind::NotFound, message),
             #[cfg(feature = "http")]
-            Error::Ureq { code: 403, message } => {
+            Error::Http { code: 403, message } => {
                 IoError::new(ErrorKind::PermissionDenied, message)
             }
             #[cfg(feature = "http")]
-            Error::Ureq { .. } => IoError::new(ErrorKind::Other, self.to_string()),
-        }
-    }
-}
-
-#[cfg(feature = "http")]
-impl From<ureq::Error> for Error {
-    fn from(err: ureq::Error) -> Self {
-        Error::Ureq {
-            code: err.status(),
-            message: err.body_text().to_owned(),
-        }
-    }
-}
-
-#[cfg(feature = "http")]
-impl From<&ureq::Response> for Error {
-    fn from(resp: &ureq::Response) -> Self {
-        Error::Ureq {
-            code: resp.status(),
-            message: resp.status_text().to_owned(),
+            Error::Http { .. } => IoError::new(ErrorKind::Other, self.to_string()),
         }
     }
 }
@@ -76,7 +56,7 @@ impl Display for Error {
         match self {
             Error::Io(err) => err.fmt(f),
             #[cfg(feature = "http")]
-            Error::Ureq { code, message } => write!(f, "{}: {}", code, message),
+            Error::Http { code, message } => write!(f, "{}: {}", code, message),
         }
     }
 }

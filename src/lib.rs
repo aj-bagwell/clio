@@ -54,6 +54,8 @@
 //! needed if you are sending a file to S3.
 
 mod error;
+#[cfg(feature = "http")]
+mod http;
 mod input;
 mod output;
 
@@ -62,11 +64,3 @@ pub use crate::error::Result;
 pub use crate::input::Input;
 pub use crate::output::Output;
 pub use crate::output::SizedOutput;
-#[cfg(feature = "http")]
-use std::ffi::OsStr;
-
-#[cfg(feature = "http")]
-fn is_http(url: &OsStr) -> bool {
-    let url = url.to_string_lossy();
-    url.starts_with("http://") || url.starts_with("https://")
-}
