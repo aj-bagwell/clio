@@ -1,17 +1,18 @@
 #[cfg(feature = "http")]
 use crate::http::{is_http, try_to_url, HttpReader};
-use crate::Result;
+use crate::{is_fifo, Result};
 use std::convert::TryFrom;
 use std::ffi::{OsStr, OsString};
 use std::fmt::{self, Debug, Display};
 use std::fs::File;
-use std::io::{self, Read, Result as IoResult};
+use std::io::{self, BufRead, BufReader, Read, Result as IoResult, Stdin};
 
 /// An enum that represents a command line input stream,
 /// either std in or a file
 #[derive(Debug)]
 pub enum Input {
-    Pipe,
+    Stdin(Stdin),
+    Pipe(OsString, File),
     File(OsString, File),
     #[cfg(feature = "http")]
     Http(String, HttpReader),
@@ -22,7 +23,7 @@ impl Input {
     pub fn new<S: AsRef<OsStr>>(path: S) -> Result<Self> {
         let path = path.as_ref();
         if path == "-" {
-            Ok(Input::Pipe)
+            Ok(Input::Stdin(io::stdin()))
         } else {
             #[cfg(feature = "http")]
             if is_http(path) {
@@ -30,7 +31,12 @@ impl Input {
                 let reader = HttpReader::new(&url)?;
                 return Ok(Input::Http(url, reader));
             }
-            Ok(Input::File(path.to_os_string(), File::open(path)?))
+            let file = File::open(path)?;
+            if is_fifo(&file)? {
+                Ok(Input::Pipe(path.to_os_string(), file))
+            } else {
+                Ok(Input::File(path.to_os_string(), file))
+            }
         }
     }
 
@@ -52,7 +58,8 @@ impl Input {
     /// ```
     pub fn len(&self) -> Option<u64> {
         match self {
-            Input::Pipe => None,
+            Input::Stdin(_) => None,
+            Input::Pipe(_, _) => None,
             Input::File(_, file) => file.metadata().ok().map(|x| x.len()),
             #[cfg(feature = "http")]
             Input::Http(_, http) => http.len(),
@@ -76,7 +83,8 @@ impl Input {
 impl Read for Input {
     fn read(&mut self, buf: &mut [u8]) -> IoResult<usize> {
         match self {
-            Input::Pipe => io::stdin().read(buf),
+            Input::Stdin(stdin) => stdin.read(buf),
+            Input::Pipe(_, pipe) => pipe.read(buf),
             Input::File(_, file) => file.read(buf),
             #[cfg(feature = "http")]
             Input::Http(_, reader) => reader.read(buf),
@@ -94,7 +102,8 @@ impl TryFrom<&OsStr> for Input {
 impl Display for Input {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Input::Pipe => write!(fmt, "-"),
+            Input::Stdin(_) => write!(fmt, "-"),
+            Input::Pipe(path, _) => write!(fmt, "{:?}", path),
             Input::File(path, _) => write!(fmt, "{:?}", path),
             #[cfg(feature = "http")]
             Input::Http(url, _) => write!(fmt, "{}", url),

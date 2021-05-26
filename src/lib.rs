@@ -64,3 +64,16 @@ pub use crate::error::Result;
 pub use crate::input::Input;
 pub use crate::output::Output;
 pub use crate::output::SizedOutput;
+
+use std::fs::File;
+
+#[cfg(not(unix))]
+fn is_fifo(file: &File) -> Result<bool> {
+    Ok(false)
+}
+
+#[cfg(unix)]
+fn is_fifo(file: &File) -> Result<bool> {
+    use std::os::unix::fs::FileTypeExt;
+    Ok(file.metadata()?.file_type().is_fifo())
+}
