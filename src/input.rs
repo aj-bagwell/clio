@@ -78,6 +78,32 @@ impl Input {
     pub fn is_empty(&self) -> Option<bool> {
         self.len().map(|l| l == 0)
     }
+
+    /// If the input is std in [locks](std::io::Stdin::lock) it, otherwise wraps the file in a buffered reader.
+    /// This is useful to get the line iterator of the [`BufRead`](std::io::BufRead).
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use std::io::BufRead;
+    /// # fn main() -> Result<(), clio::Error> {
+    /// let mut file = clio::Input::new("-")?;
+    ///
+    /// for line in file.lock().lines() {
+    ///   println!("line is: {}", line?);
+    /// }
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn lock<'a>(&'a mut self) -> Box<dyn BufRead + 'a> {
+        match self {
+            Input::Stdin(stdin) => Box::new(stdin.lock()),
+            Input::Pipe(_, pipe) => Box::new(BufReader::new(pipe)),
+            Input::File(_, file) => Box::new(BufReader::new(file)),
+            #[cfg(feature = "http")]
+            Input::Http(_, http) => Box::new(BufReader::new(http)),
+        }
+    }
 }
 
 impl Read for Input {

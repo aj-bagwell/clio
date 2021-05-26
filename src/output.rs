@@ -53,6 +53,29 @@ impl Output {
             Output::Http(_, http) => Ok(http.finish()?),
         }
     }
+
+    /// If the output is std out [locks](std::io::Stdout::lock) it.
+    /// usefull in multithreaded context to write lines consistently
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # fn main() -> Result<(), clio::Error> {
+    /// let mut file = clio::Output::new("-")?;
+    ///
+    /// writeln!(file.lock(), "hello world")?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn lock<'a>(&'a mut self) -> Box<dyn Write + 'a> {
+        match self {
+            Output::Stdout(stdout) => Box::new(stdout.lock()),
+            Output::Pipe(_, pipe) => Box::new(pipe),
+            Output::File(_, file) => Box::new(file),
+            #[cfg(feature = "http")]
+            Output::Http(_, http) => Box::new(http),
+        }
+    }
 }
 
 impl Write for Output {
