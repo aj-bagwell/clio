@@ -21,6 +21,7 @@ pub enum Output {
 
 /// A builder for [Output](crate::Output) that allows setting the size before writing.
 /// This is mostly usefull with the "http" feature for setting the Content-Length header
+#[derive(Debug)]
 pub enum SizedOutput {
     Stdout(Stdout),
     Pipe(OsString, File),
