@@ -1,12 +1,12 @@
 use crate::{Error, Result};
-use pipe::{PipeReader, PipeWriter};
+use pipe::{PipeReader, PipeBufWriter};
 use std::fmt::{self, Debug};
 use std::io::{Error as IoError, ErrorKind, Read, Result as IoResult, Write};
 use std::sync::mpsc::{sync_channel, Receiver, SyncSender};
 use std::thread::spawn;
 
 pub struct HttpWriter {
-    write: PipeWriter,
+    write: PipeBufWriter,
     rx: Receiver<Result<()>>,
 }
 
@@ -30,7 +30,7 @@ impl Read for SnitchingReader {
 
 impl HttpWriter {
     pub fn new(url: &str, size: Option<u64>) -> Result<Self> {
-        let (read, write) = pipe::pipe();
+        let (read, write) = pipe::pipe_buffered();
 
         let mut req = ureq::put(&url);
         if let Some(size) = size {

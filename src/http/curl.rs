@@ -1,6 +1,6 @@
 use curl::easy::{Easy, ReadError};
 use curl::Error;
-use pipe::{PipeReader, PipeWriter};
+use pipe::{PipeReader, PipeBufWriter};
 use std::convert::TryFrom;
 use std::fmt::{self, Debug};
 use std::io::{Read, Write};
@@ -10,7 +10,7 @@ use std::sync::Arc;
 use std::thread::spawn;
 
 pub struct HttpWriter {
-    write: PipeWriter,
+    write: PipeBufWriter,
     rx: Receiver<Result<(), Error>>,
 }
 
@@ -18,7 +18,7 @@ impl HttpWriter {
     pub fn new(url: &str, size: Option<u64>) -> Result<Self, Error> {
         let mut easy = new_easy(url)?;
 
-        let (mut read, write) = pipe::pipe();
+        let (mut read, write) = pipe::pipe_buffered();
 
         let (done_tx, rx) = sync_channel(0);
         let connected_tx = done_tx.clone();
