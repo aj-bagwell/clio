@@ -1,5 +1,5 @@
 use crate::{Error, Result};
-use pipe::{PipeReader, PipeBufWriter};
+use pipe::{PipeBufWriter, PipeReader};
 use std::fmt::{self, Debug};
 use std::io::{Error as IoError, ErrorKind, Read, Result as IoResult, Write};
 use std::sync::mpsc::{sync_channel, Receiver, SyncSender};
@@ -32,7 +32,7 @@ impl HttpWriter {
     pub fn new(url: &str, size: Option<u64>) -> Result<Self> {
         let (read, write) = pipe::pipe_buffered();
 
-        let mut req = ureq::put(&url);
+        let mut req = ureq::put(url);
         if let Some(size) = size {
             req = req.set("content-length", &size.to_string());
         }
@@ -83,7 +83,7 @@ pub struct HttpReader {
 
 impl HttpReader {
     pub fn new(url: &str) -> Result<Self> {
-        let resp = ureq::get(&url).call()?;
+        let resp = ureq::get(url).call()?;
 
         let length = resp
             .header("content-length")

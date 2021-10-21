@@ -35,9 +35,9 @@ impl From<IoError> for Error {
     }
 }
 
-impl Into<IoError> for Error {
-    fn into(self) -> IoError {
-        match self {
+impl From<Error> for IoError {
+    fn from(err: Error) -> Self {
+        match err {
             Error::Io(err) => err,
             #[cfg(feature = "http")]
             Error::Http { code: 404, message } => IoError::new(ErrorKind::NotFound, message),
@@ -46,7 +46,7 @@ impl Into<IoError> for Error {
                 IoError::new(ErrorKind::PermissionDenied, message)
             }
             #[cfg(feature = "http")]
-            Error::Http { .. } => IoError::new(ErrorKind::Other, self.to_string()),
+            Error::Http { .. } => IoError::new(ErrorKind::Other, err.to_string()),
         }
     }
 }
