@@ -10,11 +10,20 @@ pub struct HttpWriter {
     rx: Receiver<Result<()>>,
 }
 
+
+/// A wrapper for the read end of the pipe that sniches on when data is first read
+/// by sending `Ok(())` down tx.
+///
+/// This is used so that we can block the code making the put request until ethier:
+/// a) the data is tried to be read, or
+/// b) the request fails before trying to send the payload (bad hostname, invalid auth, etc)
 struct SnitchingReader {
     read: PipeReader,
     connected: bool,
     tx: SyncSender<Result<()>>,
 }
+
+
 
 impl Read for SnitchingReader {
     fn read(&mut self, buffer: &mut [u8]) -> IoResult<usize> {
@@ -50,6 +59,7 @@ impl HttpWriter {
                 .unwrap();
         });
 
+	// either Ok(()) if the other thread started reading or the connection error
         rx.recv().unwrap()?;
         Ok(HttpWriter { write, rx })
     }
