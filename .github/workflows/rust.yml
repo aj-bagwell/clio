@@ -13,7 +13,7 @@ jobs:
     - name: Format
       run: cargo fmt -- --check
     - name: Check
-      run: cargo fmt --tests --features http-ureq -- --check
+      run: cargo check --tests --features http-ureq
     - name: Clippy
       run: cargo clippy --no-dpes --features http-ureq
     - name: Run tests
