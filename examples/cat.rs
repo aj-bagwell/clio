@@ -1,5 +1,5 @@
-use structopt::StructOpt;
 use clio::*;
+use structopt::StructOpt;
 
 #[derive(StructOpt)]
 #[structopt(name = "cat")]

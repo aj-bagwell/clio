@@ -10,7 +10,6 @@ pub struct HttpWriter {
     rx: Receiver<Result<()>>,
 }
 
-
 /// A wrapper for the read end of the pipe that sniches on when data is first read
 /// by sending `Ok(())` down tx.
 ///
@@ -22,8 +21,6 @@ struct SnitchingReader {
     connected: bool,
     tx: SyncSender<Result<()>>,
 }
-
-
 
 impl Read for SnitchingReader {
     fn read(&mut self, buffer: &mut [u8]) -> IoResult<usize> {
@@ -59,7 +56,7 @@ impl HttpWriter {
                 .unwrap();
         });
 
-	// either Ok(()) if the other thread started reading or the connection error
+        // either Ok(()) if the other thread started reading or the connection error
         rx.recv().unwrap()?;
         Ok(HttpWriter { write, rx })
     }

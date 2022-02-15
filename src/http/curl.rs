@@ -1,6 +1,6 @@
 use curl::easy::{Easy, ReadError};
 use curl::Error;
-use pipe::{PipeReader, PipeBufWriter};
+use pipe::{PipeBufWriter, PipeReader};
 use std::convert::TryFrom;
 use std::fmt::{self, Debug};
 use std::io::{Read, Write};
