@@ -15,6 +15,6 @@ jobs:
     - name: Check
       run: cargo check --tests --features http-ureq
     - name: Clippy
-      run: cargo clippy --no-dpes --features http-ureq
+      run: cargo clippy --no-deps --features http-ureq
     - name: Run tests
-      run: cargo test --verbose --features http-ureq
+      run: cargo test --features http-ureq
