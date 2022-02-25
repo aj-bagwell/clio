@@ -256,6 +256,16 @@ impl CachedInput {
     }
 }
 
+impl BufRead for CachedInput {
+    fn fill_buf(&mut self) -> IoResult<&[u8]> {
+        self.data.fill_buf()
+    }
+
+    fn consume(&mut self, amt: usize) {
+        self.data.consume(amt)
+    }
+}
+
 impl Read for CachedInput {
     fn read(&mut self, buf: &mut [u8]) -> IoResult<usize> {
         self.data.read(buf)
