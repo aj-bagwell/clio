@@ -1,9 +1,10 @@
+use crate::error::seek_error;
 use crate::{is_fifo, Result};
 use std::convert::TryFrom;
 use std::ffi::{OsStr, OsString};
 use std::fmt::{self, Debug, Display};
 use std::fs::{File, OpenOptions};
-use std::io::{self, Result as IoResult, Stdout, Write};
+use std::io::{self, Result as IoResult, Seek, Stdout, Write};
 
 #[cfg(feature = "http")]
 use crate::http::{is_http, try_to_url, HttpWriter};
@@ -96,6 +97,15 @@ impl Write for Output {
             Output::File(_, file) => file.write(buf),
             #[cfg(feature = "http")]
             Output::Http(_, http) => http.write(buf),
+        }
+    }
+}
+
+impl Seek for Output {
+    fn seek(&mut self, pos: io::SeekFrom) -> IoResult<u64> {
+        match self {
+            Output::File(_, file) => file.seek(pos),
+            _ => Err(seek_error()),
         }
     }
 }

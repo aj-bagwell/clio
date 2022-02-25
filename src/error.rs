@@ -60,3 +60,13 @@ impl Display for Error {
         }
     }
 }
+
+// When io_error_more graduates from nightly these can use the NotSeekable kind directly
+#[cfg(unix)]
+pub(crate) fn seek_error() -> IoError {
+    IoError::from_raw_os_error(libc::ESPIPE)
+}
+#[cfg(not(unix))]
+pub(crate) fn seek_error() -> IoError {
+    IoError::new(ErrorKind::NotFound, "Cannot seek on stream")
+}

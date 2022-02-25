@@ -1,3 +1,4 @@
+use crate::error::seek_error;
 #[cfg(feature = "http")]
 use crate::http::{is_http, try_to_url, HttpReader};
 use crate::{is_fifo, Result};
@@ -139,6 +140,16 @@ impl Read for Input {
             Input::File(_, file) => file.read(buf),
             #[cfg(feature = "http")]
             Input::Http(_, reader) => reader.read(buf),
+        }
+    }
+}
+
+impl Seek for Input {
+    fn seek(&mut self, pos: io::SeekFrom) -> IoResult<u64> {
+        match self {
+            Input::Pipe(_, pipe) => pipe.seek(pos),
+            Input::File(_, file) => file.seek(pos),
+            _ => Err(seek_error()),
         }
     }
 }
