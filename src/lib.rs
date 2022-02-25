@@ -1,5 +1,7 @@
 #![forbid(unsafe_code)]
+#![forbid(missing_docs)]
 #![warn(clippy::all)]
+#![deny(warnings)]
 #![allow(clippy::needless_doctest_main)]
 //! clio is a library for parsing CLI file names.
 //!

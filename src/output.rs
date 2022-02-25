@@ -11,13 +11,31 @@ use std::io::{self, Result as IoResult, Seek, Stdout, Write};
 use crate::http::{is_http, try_to_url, HttpWriter};
 
 /// An enum that represents a command line output stream,
-/// either std out or a file
+/// either [`Stdout`] or a [`File`] along with it's path
+///
+/// It is designed to be used with the [`clap` crate](https://docs.rs/clap/latest) when taking a file name as an
+/// argument to CLI app
+/// ```
+/// use clap::Parser;
+/// use clio::Output;
+///
+/// #[derive(Parser)]
+/// struct Opt {
+///     /// path to file, use '-' for stdout
+///     #[clap(parse(try_from_os_str = TryFrom::try_from))]
+///     output_file: Output,
+/// }
+/// ```
 #[derive(Debug)]
 pub enum Output {
+    /// a [`Stdout`] when the path was `-`
     Stdout(Stdout),
+    /// a [`File`] represeinting the named pipe e.g. crated with `mkfifo`
     Pipe(OsString, File),
+    /// a normal [`File`] opened from the path
     File(OsString, File),
     #[cfg(feature = "http")]
+    /// a writer that will upload the body the the HTTP server
     Http(String, Box<HttpWriter>),
 }
 
@@ -25,10 +43,14 @@ pub enum Output {
 /// This is mostly usefull with the "http" feature for setting the Content-Length header
 #[derive(Debug)]
 pub enum SizedOutput {
+    /// a [`Stdout`] when the path was `-`
     Stdout(Stdout),
+    /// a [`File`] represeinting the named pipe e.g. crated with `mkfifo`
     Pipe(OsString, File),
+    /// a normal [`File`] opened from the path
     File(OsString, File),
     #[cfg(feature = "http")]
+    /// the url to try uploading to
     Http(String),
 }
 
@@ -150,16 +172,17 @@ impl SizedOutput {
         TryFrom::try_from(path).map_err(|e: Error| e.to_os_string(path))
     }
 
-    /// set the length of the file, either as the content-length header of the http put
+    /// set the length of the file, either using [`File::set_len`] or as the content-length header of the http put
     pub fn with_len(self, size: u64) -> Result<Output> {
         self.maybe_with_len(Some(size))
     }
 
-    // convert to an normal output without setting the length
+    /// convert to an normal [`Output`] without setting the length
     pub fn without_len(self) -> Result<Output> {
         self.maybe_with_len(None)
     }
 
+    /// convert to an normal [`Output`] setting the length of the file to size if it is `Some`
     pub fn maybe_with_len(self, size: Option<u64>) -> Result<Output> {
         Ok(match self {
             SizedOutput::Stdout(stdout) => Output::Stdout(stdout),
@@ -195,6 +218,7 @@ fn open_rw(path: &OsStr) -> io::Result<File> {
         .open(path)
 }
 
+/// formats the [`Output`] as the path it was created from
 impl Display for Output {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -207,6 +231,7 @@ impl Display for Output {
     }
 }
 
+/// formats the [`SizedOutput`] as the path it was created from
 impl Display for SizedOutput {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {

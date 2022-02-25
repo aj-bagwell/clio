@@ -8,14 +8,22 @@ use std::io::ErrorKind;
 /// Any error that happens when opening a stream.
 #[derive(Debug)]
 pub enum Error {
+    /// the [`io::Error`](IoError) returned by the os when opening the file
     Io(IoError),
     #[cfg(feature = "http")]
+    /// the HTTP response code and message returned by the sever
+    ///
+    /// code 499 may be returned in some instances when the connection to
+    /// the server did not complete.
     Http {
+        /// [HTTP status code](https://en.wikipedia.org/wiki/List_of_HTTP_status_codes#4xx_client_errors)
         code: u16,
+        /// the error message returned by the server
         message: String,
     },
 }
 
+/// A result with a [`clio::Error`](Error)
 pub type Result<T> = std::result::Result<T, Error>;
 
 impl Error {

@@ -9,7 +9,7 @@ use std::fs::File;
 use std::io::{self, BufRead, BufReader, Cursor, Read, Result as IoResult, Seek, Stdin};
 
 /// An enum that represents a command line input stream,
-/// either std in or a file
+/// either [`Stdin`] or [`File`]
 ///
 /// It is designed to be used with the [`clap` crate](https://docs.rs/clap/latest) when taking a file name as an
 /// argument to CLI app
@@ -26,10 +26,14 @@ use std::io::{self, BufRead, BufReader, Cursor, Read, Result as IoResult, Seek, 
 /// ```
 #[derive(Debug)]
 pub enum Input {
+    /// a [`Stdin`] when the path was `-`
     Stdin(Stdin),
+    /// a [`File`] represeinting the named pipe e.g. if called with `<(cat /dev/null)`
     Pipe(OsString, File),
+    /// a normal [`File`] opened from the path
     File(OsString, File),
     #[cfg(feature = "http")]
+    /// a reader that will download response from the HTTP server
     Http(OsString, HttpReader),
 }
 
@@ -164,6 +168,7 @@ impl TryFrom<&OsStr> for Input {
     }
 }
 
+/// formats the [`Input`] as the path it was created from
 impl Display for Input {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(fmt, "{:?}", self.path())
@@ -292,6 +297,7 @@ impl TryFrom<&OsStr> for CachedInput {
     }
 }
 
+/// formats the [`CachedInput`] as the path it was created from
 impl Display for CachedInput {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(fmt, "{:?}", self.path)
