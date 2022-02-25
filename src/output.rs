@@ -38,7 +38,7 @@ impl Output {
 
     /// Contructs a new output either by opening/creating the file or for '-' returning stdout
     /// The error is converted to a OsString so that stuctopt can show it to the user
-    pub fn try_from_os_str(path: &OsStr) -> std::result::Result<Self, std::ffi::OsString> {
+    pub fn try_from_os_str(path: &OsStr) -> std::result::Result<Self, String> {
         TryFrom::try_from(path)
     }
 
@@ -101,9 +101,9 @@ impl Write for Output {
 }
 
 impl TryFrom<&OsStr> for Output {
-    type Error = std::ffi::OsString;
-    fn try_from(file_name: &OsStr) -> std::result::Result<Self, std::ffi::OsString> {
-        Output::new(file_name).map_err(|e| e.to_os_string(file_name))
+    type Error = String;
+    fn try_from(file_name: &OsStr) -> std::result::Result<Self, String> {
+        Output::new(file_name).map_err(|e| e.to_string())
     }
 }
 
