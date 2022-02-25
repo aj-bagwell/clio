@@ -1,4 +1,4 @@
-use crate::{is_fifo, Result};
+use crate::{is_fifo, Error, Result};
 use std::convert::TryFrom;
 use std::ffi::{OsStr, OsString};
 use std::fmt::{self, Debug, Display};
@@ -37,9 +37,12 @@ impl Output {
     }
 
     /// Contructs a new output either by opening/creating the file or for '-' returning stdout
-    /// The error is converted to a OsString so that stuctopt can show it to the user
-    pub fn try_from_os_str(path: &OsStr) -> std::result::Result<Self, String> {
-        TryFrom::try_from(path)
+    ///
+    /// The error is converted to a [`OsString`](std::ffi::OsString) so that [stuctopt](https://docs.rs/structopt/latest/structopt/#custom-string-parsers) can show it to the user.
+    ///
+    /// It is recomended that you use [`TryFrom::try_from`] and [clap 3.0](https://docs.rs/clap/latest/clap/index.html) instead.
+    pub fn try_from_os_str(path: &OsStr) -> std::result::Result<Self, std::ffi::OsString> {
+        TryFrom::try_from(path).map_err(|e: Error| e.to_os_string(path))
     }
 
     /// Syncs the file to disk or closes any HTTP connections and returns any errors
@@ -101,9 +104,9 @@ impl Write for Output {
 }
 
 impl TryFrom<&OsStr> for Output {
-    type Error = String;
-    fn try_from(file_name: &OsStr) -> std::result::Result<Self, String> {
-        Output::new(file_name).map_err(|e| e.to_string())
+    type Error = crate::Error;
+    fn try_from(file_name: &OsStr) -> Result<Self> {
+        Output::new(file_name)
     }
 }
 
@@ -127,10 +130,13 @@ impl SizedOutput {
         }
     }
 
-    /// Contructs a new output either by opening/creating the file or for '-' returning stdout
-    /// The error is converted to a OsString so that stuctopt can show it to the user
+    /// Contructs a new [`SizedOutput`] either by opening/creating the file or for '-' returning stdout
+    ///
+    /// The error is converted to a [`OsString`](std::ffi::OsString) so that [stuctopt](https://docs.rs/structopt/latest/structopt/#custom-string-parsers) can show it to the user.
+    ///
+    /// It is recomended that you use [`TryFrom::try_from`] and [clap 3.0](https://docs.rs/clap/latest/clap/index.html) instead.
     pub fn try_from_os_str(path: &OsStr) -> std::result::Result<Self, std::ffi::OsString> {
-        TryFrom::try_from(path)
+        TryFrom::try_from(path).map_err(|e: Error| e.to_os_string(path))
     }
 
     /// set the length of the file, either as the content-length header of the http put
@@ -163,9 +169,9 @@ impl SizedOutput {
 }
 
 impl TryFrom<&OsStr> for SizedOutput {
-    type Error = std::ffi::OsString;
-    fn try_from(file_name: &OsStr) -> std::result::Result<Self, std::ffi::OsString> {
-        SizedOutput::new(file_name).map_err(|e| e.to_os_string(file_name))
+    type Error = crate::Error;
+    fn try_from(file_name: &OsStr) -> Result<Self> {
+        SizedOutput::new(file_name)
     }
 }
 

@@ -22,22 +22,23 @@
 //!
 //! They are also desgined to be used with [structopt](https://docs.rs/structopt)/[clap](https://docs.rs/clap)
 //! ```
-//! use structopt::StructOpt;
+//! use clap::Parser;
 //! use clio::*;
-//! #[derive(StructOpt)]
-//! #[structopt(name = "cat")]
+//!
+//! #[derive(Parser)]
+//! #[clap(name = "cat")]
 //! struct Opt {
 //!     /// Input file, use '-' for stdin
-//!     #[structopt(parse(try_from_os_str = Input::try_from_os_str), default_value="-")]
+//!     #[clap(parse(try_from_os_str = TryFrom::try_from), default_value="-")]
 //!     input: Input,
 //!
 //!     /// Output file '-' for stdout
-//!     #[structopt(long, short, parse(try_from_os_str = Output::try_from_os_str), default_value="-")]
+//!     #[clap(long, short, parse(try_from_os_str = TryFrom::try_from), default_value="-")]
 //!     output: Output,
 //! }
 //!
 //! fn main() {
-//!     let mut opt = Opt::from_args();
+//!     let mut opt = Opt::parse();
 //!
 //!     std::io::copy(&mut opt.input, &mut opt.output).unwrap();
 //! }

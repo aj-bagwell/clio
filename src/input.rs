@@ -1,6 +1,6 @@
 #[cfg(feature = "http")]
 use crate::http::{is_http, try_to_url, HttpReader};
-use crate::{is_fifo, Result};
+use crate::{is_fifo, Error, Result};
 use std::convert::TryFrom;
 use std::ffi::{OsStr, OsString};
 use std::fmt::{self, Debug, Display};
@@ -10,16 +10,16 @@ use std::io::{self, BufRead, BufReader, Cursor, Read, Result as IoResult, Seek, 
 /// An enum that represents a command line input stream,
 /// either std in or a file
 ///
-/// It is designed to be used with the [`structopt` crate](https://docs.rs/structopt/latest) when taking a file name as an
+/// It is designed to be used with the [`clap` crate](https://docs.rs/clap/latest) when taking a file name as an
 /// argument to CLI app
 /// ```
-/// use structopt::StructOpt;
+/// use clap::Parser;
 /// use clio::Input;
 ///
-/// #[derive(StructOpt)]
+/// #[derive(Parser)]
 /// struct Opt {
 ///     /// path to file, use '-' for stdin
-///     #[structopt(parse(try_from_os_str = Input::try_from_os_str))]
+///     #[clap(parse(try_from_os_str = TryFrom::try_from))]
 ///     input_file: Input,
 /// }
 /// ```
@@ -55,9 +55,12 @@ impl Input {
     }
 
     /// Contructs a new input either by opening the file or for '-' returning stdin
-    /// The error is converted to a OsString so that [stuctopt](https://docs.rs/structopt/latest/structopt/#custom-string-parsers) can show it to the user
-    pub fn try_from_os_str(path: &OsStr) -> std::result::Result<Self, String> {
-        TryFrom::try_from(path)
+    ///
+    /// The error is converted to a [`OsString`](std::ffi::OsString) so that [stuctopt](https://docs.rs/structopt/latest/structopt/#custom-string-parsers) can show it to the user.
+    ///
+    /// It is recomended that you use [`TryFrom::try_from`] and [clap 3.0](https://docs.rs/clap/latest/clap/index.html) instead.
+    pub fn try_from_os_str(path: &OsStr) -> std::result::Result<Self, std::ffi::OsString> {
+        TryFrom::try_from(path).map_err(|e: Error| e.to_os_string(path))
     }
 
     /// If input is a file, returns the size of the file, in bytes
@@ -144,9 +147,9 @@ impl Read for Input {
 }
 
 impl TryFrom<&OsStr> for Input {
-    type Error = String;
-    fn try_from(file_name: &OsStr) -> std::result::Result<Self, String> {
-        Input::new(file_name).map_err(|e| e.to_string())
+    type Error = Error;
+    fn try_from(file_name: &OsStr) -> Result<Self> {
+        Input::new(file_name)
     }
 }
 
@@ -159,16 +162,16 @@ impl Display for Input {
 /// A struct that contains all the connents of a command line input stream,
 /// either std in or a file
 ///
-/// It is designed to be used with the [`structopt` crate](https://docs.rs/structopt/latest) when taking a file name as an
+/// It is designed to be used with the [`clap` 3.1 crate](https://docs.rs/clap/latest) when taking a file name as an
 /// argument to CLI app
 /// ```
-/// use structopt::StructOpt;
+/// use clap::Parser;
 /// use clio::CachedInput;
 ///
-/// #[derive(StructOpt)]
+/// #[derive(Parser)]
 /// struct Opt {
 ///     /// path to file, use '-' for stdin
-///     #[structopt(parse(try_from_os_str = CachedInput::try_from_os_str))]
+///     #[clap(parse(try_from_os_str = TryFrom::try_from))]
 ///     input_file: CachedInput,
 /// }
 /// ```
@@ -192,10 +195,14 @@ impl CachedInput {
         Ok(CachedInput { path, data })
     }
 
-    /// Contructs a new input either by opening the file or for '-' returning stdin.
-    /// The error is converted to a OsString so that [stuctopt](https://docs.rs/structopt/latest/structopt/#custom-string-parsers) can show it to the user.
+    /// Contructs a new [`CachedInput`] either by opening the file or for '-' stdin and reading
+    /// all the data into memory.
+    ///
+    /// The error is converted to a [`OsString`](std::ffi::OsString) so that [stuctopt](https://docs.rs/structopt/latest/structopt/#custom-string-parsers) can show it to the user.
+    ///
+    /// It is recomended that you use [`TryFrom::try_from`] and [clap 3.0](https://docs.rs/clap/latest/clap/index.html) instead.
     pub fn try_from_os_str(path: &OsStr) -> std::result::Result<Self, std::ffi::OsString> {
-        TryFrom::try_from(path)
+        TryFrom::try_from(path).map_err(|e: Error| e.to_os_string(path))
     }
 
     /// Returns the size of the file in bytes.
@@ -258,9 +265,9 @@ impl Seek for CachedInput {
 }
 
 impl TryFrom<&OsStr> for CachedInput {
-    type Error = std::ffi::OsString;
-    fn try_from(file_name: &OsStr) -> std::result::Result<Self, std::ffi::OsString> {
-        CachedInput::new(Input::try_from(file_name)?).map_err(|e| e.to_os_string(file_name))
+    type Error = Error;
+    fn try_from(file_name: &OsStr) -> Result<Self> {
+        CachedInput::new(Input::try_from(file_name)?)
     }
 }
 
