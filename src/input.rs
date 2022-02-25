@@ -57,7 +57,7 @@ impl Input {
 
     /// Contructs a new input either by opening the file or for '-' returning stdin
     /// The error is converted to a OsString so that [stuctopt](https://docs.rs/structopt/latest/structopt/#custom-string-parsers) can show it to the user
-    pub fn try_from_os_str(path: &OsStr) -> std::result::Result<Self, std::ffi::OsString> {
+    pub fn try_from_os_str(path: &OsStr) -> std::result::Result<Self, String> {
         TryFrom::try_from(path)
     }
 
@@ -155,9 +155,9 @@ impl Seek for Input {
 }
 
 impl TryFrom<&OsStr> for Input {
-    type Error = std::ffi::OsString;
-    fn try_from(file_name: &OsStr) -> std::result::Result<Self, std::ffi::OsString> {
-        Input::new(file_name).map_err(|e| e.to_os_string(file_name))
+    type Error = String;
+    fn try_from(file_name: &OsStr) -> std::result::Result<Self, String> {
+        Input::new(file_name).map_err(|e| e.to_string())
     }
 }
 
