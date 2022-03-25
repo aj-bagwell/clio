@@ -2,7 +2,6 @@ use std::convert::From;
 use std::ffi::{OsStr, OsString};
 use std::fmt::Display;
 use std::io::Error as IoError;
-#[cfg(feature = "http")]
 use std::io::ErrorKind;
 
 /// Any error that happens when opening a stream.
