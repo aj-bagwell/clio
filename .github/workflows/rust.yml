@@ -17,6 +17,6 @@ jobs:
     - name: Clippy
       run: cargo clippy --no-deps --features http-ureq
     - name: Docs
-      run: cargo docs --features http-ureq
+      run: cargo doc --features http-ureq
     - name: Run tests
       run: cargo test --features http-ureq
