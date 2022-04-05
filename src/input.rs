@@ -42,7 +42,7 @@ impl Input {
     pub fn new<S: AsRef<OsStr>>(path: S) -> Result<Self> {
         let path = path.as_ref();
         if path == "-" {
-            Ok(Input::Stdin(io::stdin()))
+            Ok(Self::std())
         } else {
             #[cfg(feature = "http")]
             if is_http(path) {
@@ -57,6 +57,11 @@ impl Input {
                 Ok(Input::File(path.to_os_string(), file))
             }
         }
+    }
+
+    /// Contructs a new input for stdin
+    pub fn std() -> Self {
+        Input::Stdin(io::stdin())
     }
 
     /// Contructs a new input either by opening the file or for '-' returning stdin
@@ -136,6 +141,13 @@ impl Input {
             #[cfg(feature = "http")]
             Input::Http(url, _) => url,
         }
+    }
+}
+
+/// Returns an [`Input`] representing stdin
+impl Default for Input {
+    fn default() -> Self {
+        Self::std()
     }
 }
 

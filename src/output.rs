@@ -60,6 +60,11 @@ impl Output {
         SizedOutput::new(path)?.without_len()
     }
 
+    /// Contructs a new output for stdout
+    pub fn std() -> Self {
+        Output::Stdout(io::stdout())
+    }
+
     /// Contructs a new output either by opening/creating the file or for '-' returning stdout
     ///
     /// The error is converted to a [`OsString`](std::ffi::OsString) so that [stuctopt](https://docs.rs/structopt/latest/structopt/#custom-string-parsers) can show it to the user.
@@ -106,6 +111,13 @@ impl Output {
     }
 }
 
+/// Returns an [`Output`] representing stdout
+impl Default for Output {
+    fn default() -> Self {
+        Output::std()
+    }
+}
+
 impl Write for Output {
     fn flush(&mut self) -> IoResult<()> {
         match self {
@@ -148,7 +160,7 @@ impl SizedOutput {
     pub fn new<S: AsRef<OsStr>>(path: S) -> Result<Self> {
         let path = path.as_ref();
         if path == "-" {
-            Ok(SizedOutput::Stdout(io::stdout()))
+            Ok(Self::std())
         } else {
             #[cfg(feature = "http")]
             if is_http(path) {
@@ -161,6 +173,11 @@ impl SizedOutput {
                 Ok(SizedOutput::File(path.to_os_string(), file))
             }
         }
+    }
+
+    /// Contructs a new output to stdout
+    pub fn std() -> Self {
+        SizedOutput::Stdout(io::stdout())
     }
 
     /// Contructs a new [`SizedOutput`] either by opening/creating the file or for '-' returning stdout
@@ -199,6 +216,13 @@ impl SizedOutput {
                 Output::Http(path, Box::new(writer))
             }
         })
+    }
+}
+
+/// Returns a [`SizedOutput`] representing stdout
+impl Default for SizedOutput {
+    fn default() -> Self {
+        SizedOutput::std()
     }
 }
 
