@@ -3,11 +3,12 @@ use pipe::{PipeBufWriter, PipeReader};
 use std::fmt::{self, Debug};
 use std::io::{Error as IoError, ErrorKind, Read, Result as IoResult, Write};
 use std::sync::mpsc::{sync_channel, Receiver, SyncSender};
+use std::sync::Mutex;
 use std::thread::spawn;
 
 pub struct HttpWriter {
     write: PipeBufWriter,
-    rx: Receiver<Result<()>>,
+    rx: Mutex<Receiver<Result<()>>>,
 }
 
 /// A wrapper for the read end of the pipe that sniches on when data is first read
@@ -58,12 +59,17 @@ impl HttpWriter {
 
         // either Ok(()) if the other thread started reading or the connection error
         rx.recv().unwrap()?;
+        let rx = Mutex::new(rx);
         Ok(HttpWriter { write, rx })
     }
 
     pub fn finish(self) -> Result<()> {
         drop(self.write);
-        self.rx.recv().unwrap()?;
+        self.rx
+            .try_lock()
+            .expect("clio HttpWriter lock should one ever be taken once while dropping")
+            .recv()
+            .unwrap()?;
         Ok(())
     }
 }

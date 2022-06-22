@@ -1,5 +1,5 @@
 use crate::error::seek_error;
-use crate::{is_fifo, Error, Result};
+use crate::{impl_try_from, is_fifo, Error, Result};
 
 use std::convert::TryFrom;
 use std::ffi::{OsStr, OsString};
@@ -22,7 +22,7 @@ use crate::http::{is_http, try_to_url, HttpWriter};
 /// #[derive(Parser)]
 /// struct Opt {
 ///     /// path to file, use '-' for stdout
-///     #[clap(parse(try_from_os_str = TryFrom::try_from))]
+///     #[clap(value_parser)]
 ///     output_file: Output,
 /// }
 /// ```
@@ -41,6 +41,20 @@ pub enum Output {
 
 /// A builder for [Output](crate::Output) that allows setting the size before writing.
 /// This is mostly usefull with the "http" feature for setting the Content-Length header
+///
+/// It is designed to be used with the [`clap` crate](https://docs.rs/clap/latest) when taking a file name as an
+/// argument to CLI app
+/// ```
+/// use clap::Parser;
+/// use clio::SizedOutput;
+///
+/// #[derive(Parser)]
+/// struct Opt {
+///     /// path to file, use '-' for stdout
+///     #[clap(value_parser)]
+///     output_file: SizedOutput,
+/// }
+/// ```
 #[derive(Debug)]
 pub enum SizedOutput {
     /// a [`Stdout`] when the path was `-`
@@ -109,14 +123,20 @@ impl Output {
             Output::Http(_, http) => Box::new(http),
         }
     }
-}
 
-/// Returns an [`Output`] representing stdout
-impl Default for Output {
-    fn default() -> Self {
-        Output::std()
+    /// The original path used to create this [`Output`]
+    pub fn path(&self) -> &OsStr {
+        match self {
+            Output::Stdout(_) => OsStr::new("-"),
+            Output::Pipe(path, _) => path,
+            Output::File(path, _) => path,
+            #[cfg(feature = "http")]
+            Output::Http(url, _) => OsStr::new(url),
+        }
     }
 }
+
+impl_try_from!(Output);
 
 impl Write for Output {
     fn flush(&mut self) -> IoResult<()> {
@@ -145,13 +165,6 @@ impl Seek for Output {
             Output::File(_, file) => file.seek(pos),
             _ => Err(seek_error()),
         }
-    }
-}
-
-impl TryFrom<&OsStr> for Output {
-    type Error = crate::Error;
-    fn try_from(file_name: &OsStr) -> Result<Self> {
-        Output::new(file_name)
     }
 }
 
@@ -217,21 +230,20 @@ impl SizedOutput {
             }
         })
     }
-}
 
-/// Returns a [`SizedOutput`] representing stdout
-impl Default for SizedOutput {
-    fn default() -> Self {
-        SizedOutput::std()
+    /// The original path used to create this [`SizedOutput`]
+    pub fn path(&self) -> &OsStr {
+        match self {
+            SizedOutput::Stdout(_) => OsStr::new("-"),
+            SizedOutput::Pipe(path, _) => path,
+            SizedOutput::File(path, _) => path,
+            #[cfg(feature = "http")]
+            SizedOutput::Http(url) => OsStr::new(url),
+        }
     }
 }
 
-impl TryFrom<&OsStr> for SizedOutput {
-    type Error = crate::Error;
-    fn try_from(file_name: &OsStr) -> Result<Self> {
-        SizedOutput::new(file_name)
-    }
-}
+impl_try_from!(SizedOutput);
 
 fn open_rw(path: &OsStr) -> io::Result<File> {
     OpenOptions::new()
@@ -240,30 +252,4 @@ fn open_rw(path: &OsStr) -> io::Result<File> {
         .create(true)
         .truncate(true)
         .open(path)
-}
-
-/// formats the [`Output`] as the path it was created from
-impl Display for Output {
-    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Output::Stdout(_) => write!(fmt, "-"),
-            Output::Pipe(path, _) => write!(fmt, "{:?}", path),
-            Output::File(path, _) => write!(fmt, "{:?}", path),
-            #[cfg(feature = "http")]
-            Output::Http(url, _) => write!(fmt, "{}", url),
-        }
-    }
-}
-
-/// formats the [`SizedOutput`] as the path it was created from
-impl Display for SizedOutput {
-    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            SizedOutput::Stdout(_) => write!(fmt, "-"),
-            SizedOutput::Pipe(path, _) => write!(fmt, "{:?}", path),
-            SizedOutput::File(path, _) => write!(fmt, "{:?}", path),
-            #[cfg(feature = "http")]
-            SizedOutput::Http(url) => write!(fmt, "{}", url),
-        }
-    }
 }

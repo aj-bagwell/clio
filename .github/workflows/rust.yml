@@ -14,9 +14,15 @@ jobs:
       run: cargo fmt -- --check
     - name: Check
       run: cargo check --tests --features http-ureq
-    - name: Clippy
+    - name: Check
+      run: cargo check --tests --features clap-parse
+    - name: Check
+      run: cargo check --tests --features http-curl
+    - name: Clippy ureq
       run: cargo clippy --no-deps --features http-ureq
+    - name: Clippy clap & curl
+      run: cargo clippy --no-deps --features http-curl,clap-parse
     - name: Docs
       run: cargo doc --features http-ureq
-    - name: Run tests
-      run: cargo test --features http-ureq
+    - name: Run clap & curl tests
+      run: cargo test --features http-curl,clap-parse

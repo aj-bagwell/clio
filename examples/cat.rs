@@ -5,11 +5,11 @@ use clio::*;
 #[clap(name = "cat")]
 struct Opt {
     /// Input file, use '-' for stdin
-    #[clap(parse(try_from_os_str = TryFrom::try_from), default_value="-")]
+    #[clap(value_parser, default_value = "-")]
     input: Input,
 
     /// Output file '-' for stdout
-    #[clap(long, short, parse(try_from_os_str = TryFrom::try_from), default_value="-")]
+    #[clap(long, short, value_parser, default_value = "-")]
     output: Output,
 }
 

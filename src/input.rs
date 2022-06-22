@@ -1,7 +1,7 @@
 use crate::error::seek_error;
 #[cfg(feature = "http")]
 use crate::http::{is_http, try_to_url, HttpReader};
-use crate::{is_fifo, Error, Result};
+use crate::{impl_try_from, is_fifo, Error, Result};
 use std::convert::TryFrom;
 use std::ffi::{OsStr, OsString};
 use std::fmt::{self, Debug, Display};
@@ -20,7 +20,7 @@ use std::io::{self, BufRead, BufReader, Cursor, Read, Result as IoResult, Seek, 
 /// #[derive(Parser)]
 /// struct Opt {
 ///     /// path to file, use '-' for stdin
-///     #[clap(parse(try_from_os_str = TryFrom::try_from))]
+///     #[clap(value_parser)]
 ///     input_file: Input,
 /// }
 /// ```
@@ -144,12 +144,7 @@ impl Input {
     }
 }
 
-/// Returns an [`Input`] representing stdin
-impl Default for Input {
-    fn default() -> Self {
-        Self::std()
-    }
-}
+impl_try_from!(Input);
 
 impl Read for Input {
     fn read(&mut self, buf: &mut [u8]) -> IoResult<usize> {
@@ -173,24 +168,10 @@ impl Seek for Input {
     }
 }
 
-impl TryFrom<&OsStr> for Input {
-    type Error = Error;
-    fn try_from(file_name: &OsStr) -> Result<Self> {
-        Input::new(file_name)
-    }
-}
-
-/// formats the [`Input`] as the path it was created from
-impl Display for Input {
-    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(fmt, "{:?}", self.path())
-    }
-}
-
 /// A struct that contains all the connents of a command line input stream,
 /// either std in or a file
 ///
-/// It is designed to be used with the [`clap` 3.1 crate](https://docs.rs/clap/latest) when taking a file name as an
+/// It is designed to be used with the [`clap` crate](https://docs.rs/clap/latest) when taking a file name as an
 /// argument to CLI app
 /// ```
 /// use clap::Parser;
@@ -199,28 +180,36 @@ impl Display for Input {
 /// #[derive(Parser)]
 /// struct Opt {
 ///     /// path to file, use '-' for stdin
-///     #[clap(parse(try_from_os_str = TryFrom::try_from))]
+///     #[clap(value_parser)]
 ///     input_file: CachedInput,
 /// }
 /// ```
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct CachedInput {
     path: OsString,
     data: Cursor<Vec<u8>>,
 }
 
 impl CachedInput {
-    /// Reads all the data from an input into memmory and stores it in a new CachedInput.
+    /// Reads all the data from an file (stdin for "-") into memmory and stores it in a new CachedInput.
     ///
     /// Useful if you want to use the input twice (see [reset](Self::reset)), or
     /// need to know the size.
-    pub fn new(mut source: Input) -> Result<Self> {
+    pub fn new<S: AsRef<OsStr>>(path: S) -> Result<Self> {
+        let mut source = Input::new(path)?;
         let path = source.path().to_os_string();
         let capacity = source.len().unwrap_or(4096) as usize;
         let mut data = Cursor::new(Vec::with_capacity(capacity));
         io::copy(&mut source, &mut data)?;
         data.set_position(0);
         Ok(CachedInput { path, data })
+    }
+
+    /// Reads all the data from stdin into memmory and stores it in a new CachedInput.
+    ///
+    /// This will block until std in is closed.
+    pub fn std() -> Result<Self> {
+        Self::new("-")
     }
 
     /// Contructs a new [`CachedInput`] either by opening the file or for '-' stdin and reading
@@ -305,7 +294,7 @@ impl Seek for CachedInput {
 impl TryFrom<&OsStr> for CachedInput {
     type Error = Error;
     fn try_from(file_name: &OsStr) -> Result<Self> {
-        CachedInput::new(Input::try_from(file_name)?)
+        CachedInput::new(file_name)
     }
 }
 
@@ -313,5 +302,13 @@ impl TryFrom<&OsStr> for CachedInput {
 impl Display for CachedInput {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(fmt, "{:?}", self.path)
+    }
+}
+
+#[cfg(feature = "clap-parse")]
+impl clap::builder::ValueParserFactory for CachedInput {
+    type Parser = crate::clapers::OsStrParser<CachedInput>;
+    fn value_parser() -> Self::Parser {
+        crate::clapers::OsStrParser::new()
     }
 }

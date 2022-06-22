@@ -6,12 +6,12 @@ use std::fmt::{self, Debug};
 use std::io::{Read, Write};
 use std::sync::atomic::{AtomicI64, Ordering};
 use std::sync::mpsc::{sync_channel, Receiver};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::thread::spawn;
 
 pub struct HttpWriter {
     write: PipeBufWriter,
-    rx: Receiver<Result<(), Error>>,
+    rx: Mutex<Receiver<Result<(), Error>>>,
 }
 
 impl HttpWriter {
@@ -44,12 +44,18 @@ impl HttpWriter {
         });
 
         rx.recv().unwrap()?;
+        let rx = Mutex::new(rx);
+
         Ok(HttpWriter { write, rx })
     }
 
     pub fn finish(self) -> Result<(), Error> {
         drop(self.write);
-        self.rx.recv().unwrap()?;
+        self.rx
+            .try_lock()
+            .expect("clio HttpReader lock should one ever be taken once while dropping")
+            .recv()
+            .unwrap()?;
         Ok(())
     }
 }
@@ -72,7 +78,7 @@ impl fmt::Debug for HttpWriter {
 pub struct HttpReader {
     length: Option<u64>,
     read: PipeReader,
-    rx: Receiver<Result<(), Error>>,
+    rx: Mutex<Receiver<Result<(), Error>>>,
 }
 
 impl HttpReader {
@@ -91,7 +97,7 @@ impl HttpReader {
         easy.header_function({
             let length = length.clone();
             move |data| {
-                let data = std::str::from_utf8(&data).unwrap().to_lowercase();
+                let data = std::str::from_utf8(data).unwrap().to_lowercase();
                 if let Some(length_string) = data.strip_prefix("content-length:") {
                     length.store(
                         length_string.trim().parse::<i64>().unwrap_or(-1),
@@ -134,6 +140,8 @@ impl HttpReader {
         });
 
         rx.recv().unwrap()?;
+        let rx = Mutex::new(rx);
+
         let length = u64::try_from(length.load(Ordering::Relaxed)).ok();
         Ok(HttpReader { length, read, rx })
     }
@@ -144,7 +152,11 @@ impl HttpReader {
 
     pub fn finish(self) -> Result<(), Error> {
         drop(self.read);
-        self.rx.recv().unwrap()?;
+        self.rx
+            .try_lock()
+            .expect("clio HttpWriter lock should one ever be taken once while dropping")
+            .recv()
+            .unwrap()?;
         Ok(())
     }
 }
