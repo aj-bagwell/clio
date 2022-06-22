@@ -5,7 +5,8 @@ use std::convert::TryFrom;
 use std::ffi::{OsStr, OsString};
 use std::fmt::{self, Debug, Display};
 use std::fs::{File, OpenOptions};
-use std::io::{self, Result as IoResult, Seek, Stdout, Write};
+use std::io::{self, ErrorKind, Result as IoResult, Seek, Stdout, Write};
+use std::path::Path;
 
 #[cfg(feature = "http")]
 use crate::http::{is_http, try_to_url, HttpWriter};
@@ -66,6 +67,27 @@ pub enum SizedOutput {
     #[cfg(feature = "http")]
     /// the url to try uploading to
     Http(String),
+}
+
+/// A builder for [Output](crate::Output) that validates the path but
+/// defers creating it until you call the [create](crate::OutputPath::create) method.
+///
+/// It is designed to be used with the [`clap` crate](https://docs.rs/clap/latest) when taking a file name as an
+/// argument to CLI app
+/// ```
+/// use clap::Parser;
+/// use clio::OutputPath;
+///
+/// #[derive(Parser)]
+/// struct Opt {
+///     /// path to file, use '-' for stdout
+///     #[clap(value_parser)]
+///     output_file: OutputPath,
+/// }
+/// ```
+#[derive(Debug, PartialEq, Eq)]
+pub struct OutputPath {
+    path: OsString,
 }
 
 impl Output {
@@ -244,6 +266,66 @@ impl SizedOutput {
 }
 
 impl_try_from!(SizedOutput);
+
+impl OutputPath {
+    /// Construct a new [`OutputPath`] from an string
+    ///
+    /// It checks if an output file could plausibly be created at that path
+    pub fn new<S: AsRef<OsStr>>(path: S) -> Result<Self> {
+        let path = path.as_ref().to_owned();
+        #[cfg(feature = "http")]
+        if is_http(&path) {
+            try_to_url(&path)?;
+            return Ok(OutputPath { path });
+        }
+
+        if path != "-" && !Path::new(&path).is_file() {
+            let path = Path::new(&path);
+            if path.is_dir() {
+                return Err(Error::io(
+                    ErrorKind::Other,
+                    "output exists and is a directory not file",
+                ));
+            }
+            if let Some(parent) = Path::new(&path).parent() {
+                if parent != Path::new("") && !parent.is_dir() {
+                    return Err(Error::io(
+                        ErrorKind::NotFound,
+                        "directory for output file not found",
+                    ));
+                }
+            } else {
+                return Err(Error::io(
+                    ErrorKind::NotFound,
+                    "output does not have parent",
+                ));
+            }
+        }
+        Ok(OutputPath { path })
+    }
+
+    /// Contructs a new [`OutputPath`] of `"-"` for stdout
+    pub fn std() -> Self {
+        OutputPath { path: "-".into() }
+    }
+
+    /// Creater the file with a predetermined length, either using [`File::set_len`] or as the `content-length` header of the http put
+    pub fn create_with_len(self, size: u64) -> Result<Output> {
+        SizedOutput::new(&self.path)?.with_len(size)
+    }
+
+    /// Create an [`Output`] without setting the length
+    pub fn create(self) -> Result<Output> {
+        Output::new(&self.path)
+    }
+
+    /// The original path represented by this [`OutputPath`]
+    pub fn path(&self) -> &OsStr {
+        &self.path
+    }
+}
+
+impl_try_from!(OutputPath);
 
 fn open_rw(path: &OsStr) -> io::Result<File> {
     OpenOptions::new()

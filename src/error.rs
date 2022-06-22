@@ -35,6 +35,13 @@ impl Error {
         str.push(self.to_string());
         str
     }
+
+    pub(crate) fn io<E>(kind: ErrorKind, error: E) -> Error
+    where
+        E: Into<Box<dyn std::error::Error + Send + Sync>>,
+    {
+        Self::Io(IoError::new(kind, error))
+    }
 }
 
 impl From<IoError> for Error {

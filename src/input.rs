@@ -6,7 +6,8 @@ use std::convert::TryFrom;
 use std::ffi::{OsStr, OsString};
 use std::fmt::{self, Debug, Display};
 use std::fs::File;
-use std::io::{self, BufRead, BufReader, Cursor, Read, Result as IoResult, Seek, Stdin};
+use std::io::{self, BufRead, BufReader, Cursor, ErrorKind, Read, Result as IoResult, Seek, Stdin};
+use std::path::Path;
 
 /// An enum that represents a command line input stream,
 /// either [`Stdin`] or [`File`]
@@ -312,3 +313,59 @@ impl clap::builder::ValueParserFactory for CachedInput {
         crate::clapers::OsStrParser::new()
     }
 }
+
+/// A builder for [Input](crate::Input) that validates the path but
+/// defers creating it until you call the [create](crate::InputPath::open) method.
+///
+/// It is designed to be used with the [`clap` crate](https://docs.rs/clap/latest) when taking a file name as an
+/// argument to CLI app
+/// ```
+/// use clap::Parser;
+/// use clio::InputPath;
+///
+/// #[derive(Parser)]
+/// struct Opt {
+///     /// path to file, use '-' for stdin
+///     #[clap(value_parser)]
+///     input_file: InputPath,
+/// }
+/// ```
+#[derive(Debug, PartialEq, Eq)]
+pub struct InputPath {
+    path: OsString,
+}
+
+impl InputPath {
+    /// Contructs a new [`InputPath`] representing the path and checking that the file exists and is readable
+    ///
+    /// note: even if this passes open may still fail if e.g. the file was delete in between
+    pub fn new<S: AsRef<OsStr>>(path: S) -> Result<Self> {
+        let path = path.as_ref().to_owned();
+        #[cfg(feature = "http")]
+        if is_http(&path) {
+            try_to_url(&path)?;
+            return Ok(InputPath { path });
+        }
+        if path != "-" && !Path::new(&path).is_file() {
+            return Err(Error::io(ErrorKind::NotFound, "file not found"));
+        }
+        Ok(InputPath { path })
+    }
+
+    /// Contructs a new [`InputPath`] to stdout ("-")
+    pub fn std() -> Self {
+        InputPath { path: "-".into() }
+    }
+
+    /// Create an [`Input`] by opening the file or for '-' returning stdin
+    pub fn open(self) -> Result<Input> {
+        Input::new(&self.path)
+    }
+
+    /// The original path used to create this [`InputPath`]
+    pub fn path(&self) -> &OsStr {
+        &self.path
+    }
+}
+
+impl_try_from!(InputPath);

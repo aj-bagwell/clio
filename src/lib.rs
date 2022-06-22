@@ -76,7 +76,9 @@ pub use crate::error::Error;
 pub use crate::error::Result;
 pub use crate::input::CachedInput;
 pub use crate::input::Input;
+pub use crate::input::InputPath;
 pub use crate::output::Output;
+pub use crate::output::OutputPath;
 pub use crate::output::SizedOutput;
 
 use std::fs::File;
