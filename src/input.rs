@@ -15,6 +15,7 @@ use std::path::Path;
 /// It is designed to be used with the [`clap` crate](https://docs.rs/clap/latest) when taking a file name as an
 /// argument to CLI app
 /// ```
+/// # #[cfg(feature="clap-parse")]{
 /// use clap::Parser;
 /// use clio::Input;
 ///
@@ -24,6 +25,7 @@ use std::path::Path;
 ///     #[clap(value_parser)]
 ///     input_file: Input,
 /// }
+/// # }
 /// ```
 #[derive(Debug)]
 pub enum Input {
@@ -175,6 +177,7 @@ impl Seek for Input {
 /// It is designed to be used with the [`clap` crate](https://docs.rs/clap/latest) when taking a file name as an
 /// argument to CLI app
 /// ```
+/// # #[cfg(feature="clap-parse")]{
 /// use clap::Parser;
 /// use clio::CachedInput;
 ///
@@ -184,6 +187,7 @@ impl Seek for Input {
 ///     #[clap(value_parser)]
 ///     input_file: CachedInput,
 /// }
+/// # }
 /// ```
 #[derive(Debug, Clone)]
 pub struct CachedInput {
@@ -320,6 +324,7 @@ impl clap::builder::ValueParserFactory for CachedInput {
 /// It is designed to be used with the [`clap` crate](https://docs.rs/clap/latest) when taking a file name as an
 /// argument to CLI app
 /// ```
+/// # #[cfg(feature="clap-parse")]{
 /// use clap::Parser;
 /// use clio::InputPath;
 ///
@@ -329,6 +334,7 @@ impl clap::builder::ValueParserFactory for CachedInput {
 ///     #[clap(value_parser)]
 ///     input_file: InputPath,
 /// }
+/// # }
 /// ```
 #[derive(Debug, PartialEq, Eq)]
 pub struct InputPath {

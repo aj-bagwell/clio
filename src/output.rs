@@ -17,6 +17,7 @@ use crate::http::{is_http, try_to_url, HttpWriter};
 /// It is designed to be used with the [`clap` crate](https://docs.rs/clap/latest) when taking a file name as an
 /// argument to CLI app
 /// ```
+/// # #[cfg(feature="clap-parse")]{
 /// use clap::Parser;
 /// use clio::Output;
 ///
@@ -26,6 +27,7 @@ use crate::http::{is_http, try_to_url, HttpWriter};
 ///     #[clap(value_parser)]
 ///     output_file: Output,
 /// }
+/// # }
 /// ```
 #[derive(Debug)]
 pub enum Output {
@@ -46,6 +48,7 @@ pub enum Output {
 /// It is designed to be used with the [`clap` crate](https://docs.rs/clap/latest) when taking a file name as an
 /// argument to CLI app
 /// ```
+/// # #[cfg(feature="clap-parse")]{
 /// use clap::Parser;
 /// use clio::SizedOutput;
 ///
@@ -55,6 +58,7 @@ pub enum Output {
 ///     #[clap(value_parser)]
 ///     output_file: SizedOutput,
 /// }
+/// # }
 /// ```
 #[derive(Debug)]
 pub enum SizedOutput {
@@ -75,6 +79,7 @@ pub enum SizedOutput {
 /// It is designed to be used with the [`clap` crate](https://docs.rs/clap/latest) when taking a file name as an
 /// argument to CLI app
 /// ```
+/// # #[cfg(feature="clap-parse")]{
 /// use clap::Parser;
 /// use clio::OutputPath;
 ///
@@ -84,6 +89,7 @@ pub enum SizedOutput {
 ///     #[clap(value_parser)]
 ///     output_file: OutputPath,
 /// }
+/// # }
 /// ```
 #[derive(Debug, PartialEq, Eq)]
 pub struct OutputPath {

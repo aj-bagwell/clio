@@ -91,6 +91,9 @@ impl fmt::Debug for HttpWriter {
 
 pub struct HttpReader {
     length: Option<u64>,
+    #[cfg(feature = "clap-parse")]
+    read: Mutex<Box<dyn Read + Send>>,
+    #[cfg(not(feature = "clap-parse"))]
     read: Box<dyn Read + Send>,
 }
 
@@ -103,7 +106,10 @@ impl HttpReader {
             .and_then(|x| x.parse::<u64>().ok());
         Ok(HttpReader {
             length,
+            #[cfg(not(feature = "clap-parse"))]
             read: Box::new(resp.into_reader()),
+            #[cfg(feature = "clap-parse")]
+            read: Mutex::new(Box::new(resp.into_reader())),
         })
     }
 
@@ -113,8 +119,17 @@ impl HttpReader {
 }
 
 impl Read for HttpReader {
+    #[cfg(not(feature = "clap-parse"))]
     fn read(&mut self, buffer: &mut [u8]) -> IoResult<usize> {
         self.read.read(buffer)
+    }
+
+    #[cfg(feature = "clap-parse")]
+    fn read(&mut self, buffer: &mut [u8]) -> IoResult<usize> {
+        self.read
+            .lock()
+            .map_err(|_| IoError::new(ErrorKind::Other, "Error locking HTTP reader"))?
+            .read(buffer)
     }
 }
 

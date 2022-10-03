@@ -4,7 +4,7 @@ description = "A library for parsing CLI file names"
 keywords = ["cli", "stdin", "stdout"]
 authors = ["AJ Bagwell <aj.bagwell@gmail.com>"]
 license = "MIT"
-version = "0.2.3"
+version = "0.2.4"
 repository = "https://github.com/aj-bagwell/clio"
 documentation = "https://docs.rs/clio"
 readme = "README.md"
@@ -20,7 +20,7 @@ clap-parse = ["clap"]
 curl = { version = "0.4", optional = true }
 ureq = { version = "2.0", optional = true }
 pipe = { version = "0.4", optional = true }
-clap = { version = "3.2.1", features = ["derive"], optional = true}
+clap = { version = ">3.2, < 5.0", features = ["derive"], optional = true}
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"

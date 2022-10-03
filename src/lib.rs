@@ -26,6 +26,7 @@
 //!
 //! See the [older docs](https://docs.rs/clio/0.2.2/clio/index.html#usage) for examples of older [clap](https://docs.rs/clap)/[structopt](https://docs.rs/structopt)
 //! ```
+//! # #[cfg(feature="clap-parse")]{
 //! use clap::Parser;
 //! use clio::*;
 //!
@@ -46,6 +47,7 @@
 //!
 //!     std::io::copy(&mut opt.input, &mut opt.output).unwrap();
 //! }
+//! # }
 //! ```
 //!
 //! # Features
@@ -96,6 +98,7 @@ fn is_fifo(file: &File) -> Result<bool> {
 
 #[cfg(test)]
 #[cfg(feature = "clap-parse")]
+/// Trait to throw compile errors if a type will not be supported by clap
 trait Parseable: Clone + Sync + Send {}
 
 macro_rules! impl_try_from {

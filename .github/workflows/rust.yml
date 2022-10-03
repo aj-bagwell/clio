@@ -24,5 +24,7 @@ jobs:
       run: cargo clippy --no-deps --features http-curl,clap-parse
     - name: Docs
       run: cargo doc --features http-ureq
+    - name: Run tests with default features (i.e. none)
+      run: cargo test
     - name: Run clap & curl tests
       run: cargo test --features http-curl,clap-parse
