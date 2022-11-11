@@ -1,12 +1,12 @@
-use crate::error::seek_error;
+use crate::error::{dir_error, seek_error};
 #[cfg(feature = "http")]
 use crate::http::{is_http, try_to_url, HttpReader};
-use crate::{impl_try_from, is_fifo, Error, Result};
+use crate::{assert_exists, assert_not_dir, impl_try_from, is_fifo, Error, Result};
 use std::convert::TryFrom;
 use std::ffi::{OsStr, OsString};
 use std::fmt::{self, Debug, Display};
 use std::fs::File;
-use std::io::{self, BufRead, BufReader, Cursor, ErrorKind, Read, Result as IoResult, Seek, Stdin};
+use std::io::{self, BufRead, BufReader, Cursor, Read, Result as IoResult, Seek, Stdin};
 use std::path::Path;
 
 /// An enum that represents a command line input stream,
@@ -54,6 +54,9 @@ impl Input {
                 return Ok(Input::Http(path.to_os_string(), reader));
             }
             let file = File::open(path)?;
+            if file.metadata()?.is_dir() {
+                return Err(dir_error().into());
+            }
             if is_fifo(&file)? {
                 Ok(Input::Pipe(path.to_os_string(), file))
             } else {
@@ -352,8 +355,10 @@ impl InputPath {
             try_to_url(&path)?;
             return Ok(InputPath { path });
         }
-        if path != "-" && !Path::new(&path).is_file() {
-            return Err(Error::io(ErrorKind::NotFound, "file not found"));
+        if path != "-" {
+            let path = Path::new(&path);
+            assert_not_dir(path)?;
+            assert_exists(path)?;
         }
         Ok(InputPath { path })
     }

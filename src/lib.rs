@@ -83,7 +83,9 @@ pub use crate::output::Output;
 pub use crate::output::OutputPath;
 pub use crate::output::SizedOutput;
 
+use std::ffi::OsStr;
 use std::fs::File;
+use std::path::Path;
 
 #[cfg(not(unix))]
 fn is_fifo(file: &File) -> Result<bool> {
@@ -94,6 +96,50 @@ fn is_fifo(file: &File) -> Result<bool> {
 fn is_fifo(file: &File) -> Result<bool> {
     use std::os::unix::fs::FileTypeExt;
     Ok(file.metadata()?.file_type().is_fifo())
+}
+
+#[cfg(unix)]
+fn ends_with_slash(path: &OsStr) -> bool {
+    use std::os::unix::ffi::OsStrExt;
+    path.as_bytes().ends_with(b"/")
+}
+
+#[cfg(windows)]
+fn ends_with_slash(path: &OsStr) -> bool {
+    use std::os::windows::ffi::OsStrExt;
+    path.encode_wide().last() == Some('/' as u16)
+}
+
+#[cfg(not(any(unix, windows)))]
+fn ends_with_slash(path: &OsStr) -> bool {
+    path.to_string_lossy().ends_with("/")
+}
+
+fn assert_exists(path: &Path) -> Result<()> {
+    if !path.exists() {
+        return Err(not_found_error().into());
+    }
+    Ok(())
+}
+
+fn assert_not_dir(path: &Path) -> Result<()> {
+    if path.try_exists()? {
+        if path.is_dir() {
+            return Err(dir_error().into());
+        }
+        if ends_with_slash(path.as_os_str()) {
+            return Err(not_dir_error().into());
+        }
+    }
+    Ok(())
+}
+
+fn assert_is_dir(path: &Path) -> Result<()> {
+    assert_exists(path)?;
+    if !path.is_dir() {
+        return Err(not_dir_error().into());
+    }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -150,4 +196,84 @@ macro_rules! impl_try_from {
     };
 }
 
+use error::dir_error;
+use error::not_dir_error;
+use error::not_found_error;
 pub(crate) use impl_try_from;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::{
+        fs::{create_dir, write},
+        io::Read,
+    };
+    use tempfile::{tempdir, TempDir};
+
+    fn temp() -> TempDir {
+        let tmp = tempdir().expect("could not make tmp dir");
+        create_dir(&tmp.path().join("dir")).expect("could not create dir");
+        write(&tmp.path().join("file"), "contents").expect("could not create dir");
+        tmp
+    }
+
+    macro_rules! assert_all_eq {
+        ($path:ident, $a:ident, $($b:expr),+) => {
+            let a = comparable($a);
+            $(
+                if (false) {
+                assert_eq!(
+                    &a,
+                    &comparable($b),
+                    "mismatched error for path {:?} ({:?}) {}",
+                    $path, Path::new($path).canonicalize(),
+                    stringify!($a != $b)
+                );
+            }
+            )+
+        };
+    }
+
+    #[test]
+    fn test_path_err_match_real_err() {
+        let tmp = temp();
+        let tmp_w = temp();
+        for path in [
+            "file",
+            "file/",
+            "dir",
+            "dir/",
+            "missing-file",
+            "missing-dir/",
+            "missing-dir/file",
+        ] {
+            let tmp_path = tmp.path().join(path);
+            let raw_r = File::open(&tmp_path).and_then(|mut f| {
+                let mut s = String::new();
+                f.read_to_string(&mut s)?;
+                Ok(s)
+            });
+            let raw_w = write(&tmp_w.path().join(path), "junk");
+
+            let in_path_err = InputPath::new(&tmp_path);
+            let open_err = Input::new(&tmp_path);
+            assert_all_eq!(path, raw_r, in_path_err, open_err);
+
+            let out_path_err = OutputPath::new(&tmp_path);
+            let create_err = Output::new(&tmp_path);
+            assert_all_eq!(path, raw_w, out_path_err, create_err);
+        }
+    }
+
+    #[cfg(target_os = "macos")]
+    fn comparable<E: std::fmt::Display, A>(
+        a: std::result::Result<A, E>,
+    ) -> std::result::Result<&'static str, String> {
+        a.map(|_| "Ok").map_err(|e| e.to_string())
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    fn comparable<E, A>(a: std::result::Result<A, E>) -> bool {
+        a.is_ok()
+    }
+}

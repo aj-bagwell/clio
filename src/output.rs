@@ -1,16 +1,17 @@
-use crate::error::seek_error;
-use crate::{impl_try_from, is_fifo, Error, Result};
+use crate::error::{not_found_error, seek_error};
+use crate::{
+    assert_is_dir, assert_not_dir, ends_with_slash, impl_try_from, is_fifo, Error, Result,
+};
 
 use std::convert::TryFrom;
 use std::ffi::{OsStr, OsString};
 use std::fmt::{self, Debug, Display};
 use std::fs::{File, OpenOptions};
-use std::io::{self, ErrorKind, Result as IoResult, Seek, Stdout, Write};
+use std::io::{self, Result as IoResult, Seek, Stdout, Write};
 use std::path::Path;
 
 #[cfg(feature = "http")]
 use crate::http::{is_http, try_to_url, HttpWriter};
-
 /// An enum that represents a command line output stream,
 /// either [`Stdout`] or a [`File`] along with it's path
 ///
@@ -287,24 +288,16 @@ impl OutputPath {
 
         if path != "-" && !Path::new(&path).is_file() {
             let path = Path::new(&path);
-            if path.is_dir() {
-                return Err(Error::io(
-                    ErrorKind::Other,
-                    "output exists and is a directory not file",
-                ));
+            assert_not_dir(path)?;
+            if ends_with_slash(path.as_os_str()) {
+                return Err(not_found_error().into());
             }
             if let Some(parent) = Path::new(&path).parent() {
-                if parent != Path::new("") && !parent.is_dir() {
-                    return Err(Error::io(
-                        ErrorKind::NotFound,
-                        "directory for output file not found",
-                    ));
+                if parent != Path::new("") {
+                    assert_is_dir(parent)?;
                 }
             } else {
-                return Err(Error::io(
-                    ErrorKind::NotFound,
-                    "output does not have parent",
-                ));
+                return Err(not_found_error().into());
             }
         }
         Ok(OutputPath { path })

@@ -36,11 +36,17 @@ impl Error {
         str
     }
 
-    pub(crate) fn io<E>(kind: ErrorKind, error: E) -> Error
-    where
-        E: Into<Box<dyn std::error::Error + Send + Sync>>,
-    {
-        Self::Io(IoError::new(kind, error))
+    /// Returns the corresponding [`ErrorKind`] for this error.
+    pub fn kind(&self) -> ErrorKind {
+        match self {
+            Error::Io(err) => err.kind(),
+            #[cfg(feature = "http")]
+            Error::Http { code, message: _ } => match code {
+                404 | 410 => ErrorKind::NotFound,
+                401 | 403 => ErrorKind::PermissionDenied,
+                _ => ErrorKind::Other,
+            },
+        }
     }
 }
 
@@ -55,13 +61,7 @@ impl From<Error> for IoError {
         match err {
             Error::Io(err) => err,
             #[cfg(feature = "http")]
-            Error::Http { code: 404, message } => IoError::new(ErrorKind::NotFound, message),
-            #[cfg(feature = "http")]
-            Error::Http { code: 403, message } => {
-                IoError::new(ErrorKind::PermissionDenied, message)
-            }
-            #[cfg(feature = "http")]
-            Error::Http { .. } => IoError::new(ErrorKind::Other, err.to_string()),
+            Error::Http { .. } => IoError::new(err.kind(), err.to_string()),
         }
     }
 }
@@ -78,12 +78,25 @@ impl Display for Error {
     }
 }
 
-// When io_error_more graduates from nightly these can use the NotSeekable kind directly
-#[cfg(unix)]
-pub(crate) fn seek_error() -> IoError {
-    IoError::from_raw_os_error(libc::ESPIPE)
+macro_rules! io_error {
+    ($func_name:ident, $unix:ident, $win:ident => ($kind:ident, $des:literal)) => {
+        // When io_error_more graduates from nightly these can use the right kind directly
+        #[cfg(unix)]
+        pub(crate) fn $func_name() -> IoError {
+            IoError::from_raw_os_error(libc::$unix)
+        }
+        #[cfg(windows)]
+        pub(crate) fn $func_name() -> IoError {
+            IoError::from_raw_os_error(windows_sys::Win32::Foundation::$win as i32)
+        }
+        #[cfg(not(any(unix, windows)))]
+        pub(crate) fn $func_name() -> IoError {
+            IoError::new(ErrorKind::$kind, $des)
+        }
+    };
 }
-#[cfg(not(unix))]
-pub(crate) fn seek_error() -> IoError {
-    IoError::new(ErrorKind::NotFound, "Cannot seek on stream")
-}
+
+io_error!(seek_error, ESPIPE, ERROR_BROKEN_PIPE => (Other, "Cannot seek on stream"));
+io_error!(dir_error, EISDIR, ERROR_INVALID_NAME => (PermissionDenied, "Is a directory"));
+io_error!(not_dir_error, ENOTDIR, ERROR_ACCESS_DENIED => (PermissionDenied, "Is not a Directory"));
+io_error!(not_found_error, ENOENT, ERROR_FILE_NOT_FOUND => (NotFound, "The system cannot find the path specified."));
