@@ -3,6 +3,7 @@
 #![warn(clippy::all)]
 #![deny(warnings)]
 #![allow(clippy::needless_doctest_main)]
+#![cfg_attr(docsrs, feature(doc_cfg))]
 //! clio is a library for parsing CLI file names.
 //!
 //! It implemts the standard unix convetions of when the file name is "-" then sending the
@@ -88,7 +89,7 @@ use std::fs::File;
 use std::path::Path;
 
 #[cfg(not(unix))]
-fn is_fifo(file: &File) -> Result<bool> {
+fn is_fifo(_: &File) -> Result<bool> {
     Ok(false)
 }
 
@@ -170,6 +171,7 @@ macro_rules! impl_try_from {
         }
 
         #[cfg(feature = "clap-parse")]
+        #[cfg_attr(docsrs, doc(cfg(feature = "clap-parse")))]
         impl clap::builder::ValueParserFactory for $struct_name {
             type Parser = crate::clapers::OsStrParser<$struct_name>;
             fn value_parser() -> Self::Parser {
@@ -178,6 +180,7 @@ macro_rules! impl_try_from {
         }
 
         #[cfg(feature = "clap-parse")]
+        #[cfg_attr(docsrs, doc(cfg(feature = "clap-parse")))]
         /// Opens a new handle on the file from the path that was used to create it
         /// Probbably a very bad idea to have two handles to the same file
         ///

@@ -36,6 +36,7 @@ pub enum Input {
     /// a normal [`File`] opened from the path
     File(OsString, File),
     #[cfg(feature = "http")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "http")))]
     /// a reader that will download response from the HTTP server
     Http(OsString, HttpReader),
 }
@@ -266,7 +267,7 @@ impl CachedInput {
         self.data.set_position(0)
     }
 
-    /// Returns data from the input as a Vec<u8>
+    /// Returns data from the input as a [`Vec<u8>`]
     pub fn into_vec(self) -> Vec<u8> {
         self.data.into_inner()
     }
@@ -314,6 +315,7 @@ impl Display for CachedInput {
 }
 
 #[cfg(feature = "clap-parse")]
+#[cfg_attr(docsrs, doc(cfg(feature = "clap-parse")))]
 impl clap::builder::ValueParserFactory for CachedInput {
     type Parser = crate::clapers::OsStrParser<CachedInput>;
     fn value_parser() -> Self::Parser {

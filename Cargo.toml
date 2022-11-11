@@ -10,6 +10,10 @@ documentation = "https://docs.rs/clio"
 readme = "README.md"
 edition = "2021"
 
+[package.metadata.docs.rs]
+rustdoc-args = ["--cfg", "docsrs"]
+features = ["http-ureq", "clap-parse"]
+
 [features]
 http = []
 http-curl = ["curl", "pipe", "http"]

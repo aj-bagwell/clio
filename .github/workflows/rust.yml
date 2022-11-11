@@ -6,12 +6,30 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  build:
+  doc:
+    name: Docs
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
+    - name: Install latest nightly
+      uses: actions-rs/toolchain@v1
+      with:
+          toolchain: nightly
+          profile: minimal
     - name: Format
       run: cargo fmt -- --check
+    - name: Docs
+      run: cargo +nightly doc --features http-ureq,clap-parse
+      env:
+        RUSTDOCFLAGS: --cfg docsrs
+  build:
+    name: Test on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}-latest
+    strategy:
+      matrix:
+        os: [ubuntu, windows, macOS]
+    steps:
+    - uses: actions/checkout@v2
     - name: Check
       run: cargo check --tests --features http-ureq
     - name: Check
@@ -22,8 +40,6 @@ jobs:
       run: cargo clippy --no-deps --features http-ureq
     - name: Clippy clap & curl
       run: cargo clippy --no-deps --features http-curl,clap-parse
-    - name: Docs
-      run: cargo doc --features http-ureq
     - name: Run tests with default features (i.e. none)
       run: cargo test
     - name: Run clap & curl tests

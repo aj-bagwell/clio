@@ -39,6 +39,7 @@ pub enum Output {
     /// a normal [`File`] opened from the path
     File(OsString, File),
     #[cfg(feature = "http")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "http")))]
     /// a writer that will upload the body the the HTTP server
     Http(String, Box<HttpWriter>),
 }
@@ -70,6 +71,7 @@ pub enum SizedOutput {
     /// a normal [`File`] opened from the path
     File(OsString, File),
     #[cfg(feature = "http")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "http")))]
     /// the url to try uploading to
     Http(String),
 }
