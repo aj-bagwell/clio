@@ -32,13 +32,20 @@ where
     fn parse_ref(
         &self,
         cmd: &clap::Command,
-        _arg: Option<&clap::Arg>,
+        arg: Option<&clap::Arg>,
         value: &std::ffi::OsStr,
     ) -> core::result::Result<Self::Value, clap::Error> {
         T::try_from(value).map_err(|orig| {
             cmd.clone().error(
                 ErrorKind::InvalidValue,
-                format!("Could not open {:?}: {}", value, orig),
+                if let Some(arg) = arg {
+                    format!(
+                        "Invalid value for {}: Could not open {:?}: {}",
+                        arg, value, orig
+                    )
+                } else {
+                    format!("Could not open {:?}: {}", value, orig)
+                },
             )
         })
     }
