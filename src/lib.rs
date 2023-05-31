@@ -6,7 +6,7 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 //! clio is a library for parsing CLI file names.
 //!
-//! It implemts the standard unix convetions of when the file name is "-" then sending the
+//! It implements the standard unix convetions of when the file name is "-" then sending the
 //! data to stdin/stdout as apropriate
 //!
 //! # Usage
