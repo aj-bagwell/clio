@@ -115,6 +115,9 @@ fn assert_not_dir(path: &ClioPath) -> Result<()> {
             return Err(not_dir_error().into());
         }
     }
+    if path.ends_with_slash() {
+        return Err(dir_error().into());
+    }
     Ok(())
 }
 
@@ -135,6 +138,7 @@ macro_rules! impl_try_from {
     ($struct_name:ident) => {
         impl_try_from!($struct_name Base);
         impl_try_from!($struct_name Default);
+        impl_try_from!($struct_name TryFrom<ClioPath>);
 
         #[cfg(feature = "clap-parse")]
         #[cfg_attr(docsrs, doc(cfg(feature = "clap-parse")))]
@@ -151,17 +155,31 @@ macro_rules! impl_try_from {
             }
         }
     };
+    (ClioPath: Clone) => {
+        impl_try_from!(ClioPath Base);
+        impl_try_from!(ClioPath Default);
+    };
     ($struct_name:ident: Clone) => {
         impl_try_from!($struct_name Base);
         impl_try_from!($struct_name Default);
+        impl_try_from!($struct_name TryFrom<ClioPath>);
     };
     ($struct_name:ident: Clone - Default) => {
         impl_try_from!($struct_name Base);
+        impl_try_from!($struct_name TryFrom<ClioPath>);
     };
     ($struct_name:ident Default) => {
         impl Default for $struct_name {
             fn default() -> Self {
                 $struct_name::std()
+            }
+        }
+    };
+    ($struct_name:ident TryFrom<ClioPath>) => {
+        impl TryFrom<ClioPath> for $struct_name {
+            type Error = crate::Error;
+            fn try_from(file_name: ClioPath) -> Result<Self> {
+                $struct_name::new(file_name)
             }
         }
     };

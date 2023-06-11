@@ -28,6 +28,14 @@ use {
 ///     /// path to input file, use '-' for stdin
 ///     #[clap(value_parser)]
 ///     input_path: ClioPath,
+///
+///     /// path to output file, use '-' for stdout point to directory to use default name
+///     #[clap(value_parser = clap::value_parser!(ClioPath).default_name("out.bin"))]
+///     output_file: ClioPath,
+///
+///     /// path to directory
+///     #[clap(value_parser = clap::value_parser!(ClioPath).exists().is_dir())]
+///     log_dir: ClioPath,
 /// }
 /// # }
 /// ```
@@ -180,6 +188,38 @@ impl ClioPath {
                 let r = path.set_extension(extension);
                 url.set_path(&path.to_string_lossy());
                 r
+            }
+        }
+    }
+
+    /// Extends `self` with `path`.
+    ///
+    /// see [PathBuf::push] for more details
+    ///
+    ///
+    /// ```
+    /// use clio::ClioPath;
+    ///
+    /// let mut path = ClioPath::new("/tmp")?;
+    /// path.push("file.bk");
+    /// assert_eq!(path, ClioPath::new("/tmp/file.bk")?);
+    ///
+    /// #[cfg(feature = "http")] {
+    ///     let mut p = ClioPath::new("https://example.com/tmp?x=y#p2")?;
+    ///     p.push("file.bk");
+    ///     assert_eq!(Some("https://example.com/tmp/file.bk?x=y#p2"), p.as_os_str().to_str());
+    /// }
+    /// # Ok::<(), clio::Error>(())
+    /// ```
+    pub fn push<P: AsRef<Path>>(&mut self, path: P) {
+        match &mut self.path {
+            ClioPathEnum::Std(_) => (),
+            ClioPathEnum::Local(base) => base.push(path),
+            #[cfg(feature = "http")]
+            ClioPathEnum::Http(url) => {
+                let mut base = Path::new(url.path()).to_owned();
+                base.push(path);
+                url.set_path(&base.to_string_lossy());
             }
         }
     }
