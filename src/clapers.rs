@@ -15,6 +15,7 @@ pub struct OsStrParser<T> {
     exists: Option<bool>,
     is_dir: Option<bool>,
     is_file: Option<bool>,
+    atomic: bool,
     default_name: Option<&'static str>,
     phantom: PhantomData<T>,
 }
@@ -26,6 +27,7 @@ impl<T> OsStrParser<T> {
             is_dir: None,
             is_file: None,
             default_name: None,
+            atomic: false,
             phantom: PhantomData,
         }
     }
@@ -50,6 +52,13 @@ impl<T> OsStrParser<T> {
         self
     }
 
+    /// Make writing atomic, by writing to a temp file then doing an
+    /// atomic swap
+    pub fn atomic(mut self) -> Self {
+        self.atomic = true;
+        self
+    }
+
     /// The default name to use for the file if the path is a directory
     pub fn default_name(mut self, name: &'static str) -> Self {
         self.default_name = Some(name);
@@ -58,6 +67,7 @@ impl<T> OsStrParser<T> {
 
     fn validate(&self, value: &OsStr) -> Result<ClioPath> {
         let mut path = ClioPath::new(value)?;
+        path.atomic = self.atomic;
         if path.is_local() {
             if let Some(name) = self.default_name {
                 if path.is_dir() || path.ends_with_slash() {

@@ -2,7 +2,9 @@ use crate::error::{dir_error, seek_error};
 #[cfg(feature = "http")]
 use crate::http::HttpReader;
 use crate::path::{ClioPathEnum, InOut};
-use crate::{assert_exists, assert_not_dir, impl_try_from, is_fifo, ClioPath, Error, Result};
+use crate::{
+    assert_exists, assert_not_dir, assert_readable, impl_try_from, is_fifo, ClioPath, Error, Result,
+};
 use std::convert::TryFrom;
 use std::ffi::OsStr;
 use std::fmt::{self, Debug, Display};
@@ -360,6 +362,7 @@ impl InputPath {
         if path.is_local() {
             assert_not_dir(&path)?;
             assert_exists(&path)?;
+            assert_readable(&path)?;
         };
         Ok(InputPath { path })
     }

@@ -4,6 +4,7 @@ use std::fmt::Display;
 use std::io::Error as IoError;
 #[allow(unused_imports)] // used only in some os/feature combos
 use std::io::ErrorKind;
+use tempfile::PersistError;
 
 /// Any error that happens when opening a stream.
 #[derive(Debug)]
@@ -53,6 +54,12 @@ impl Error {
 impl From<Infallible> for Error {
     fn from(_err: Infallible) -> Self {
         unreachable!("Infallible should not exist")
+    }
+}
+
+impl From<PersistError> for Error {
+    fn from(err: PersistError) -> Self {
+        Error::Io(err.error)
     }
 }
 
@@ -115,4 +122,5 @@ macro_rules! io_error {
 io_error!(seek_error, ESPIPE, ERROR_BROKEN_PIPE => (Other, "Cannot seek on stream"));
 io_error!(dir_error, EISDIR, ERROR_INVALID_NAME => (PermissionDenied, "Is a directory"));
 io_error!(not_dir_error, ENOTDIR, ERROR_ACCESS_DENIED => (PermissionDenied, "Is not a Directory"));
+io_error!(permission_error, EACCES, ERROR_ACCESS_DENIED => (PermissionDenied, "Permission denied"));
 io_error!(not_found_error, ENOENT, ERROR_FILE_NOT_FOUND => (NotFound, "The system cannot find the path specified."));

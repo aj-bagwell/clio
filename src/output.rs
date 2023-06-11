@@ -1,6 +1,9 @@
 use crate::error::{not_found_error, seek_error};
 use crate::path::{ClioPathEnum, InOut};
-use crate::{assert_is_dir, assert_not_dir, impl_try_from, is_fifo, ClioPath, Error, Result};
+use crate::{
+    assert_is_dir, assert_not_dir, assert_writeable, impl_try_from, is_fifo, ClioPath, Error,
+    Result,
+};
 
 use std::convert::TryFrom;
 use std::ffi::OsStr;
@@ -8,6 +11,7 @@ use std::fmt::{self, Debug, Display};
 use std::fs::{File, OpenOptions};
 use std::io::{self, Result as IoResult, Seek, Stdout, Write};
 use std::path::Path;
+use tempfile::NamedTempFile;
 
 #[derive(Debug)]
 enum OutputStream {
@@ -17,6 +21,8 @@ enum OutputStream {
     Pipe(File),
     /// a normal [`File`] opened from the path
     File(File),
+    /// A normal [`File`] opened from the path that will be writted atomically
+    AtomicFile(NamedTempFile),
     #[cfg(feature = "http")]
     #[cfg_attr(docsrs, doc(cfg(feature = "http")))]
     /// a writer that will upload the body the the HTTP server
@@ -25,7 +31,7 @@ enum OutputStream {
 
 #[cfg(feature = "http")]
 use crate::http::HttpWriter;
-/// An enum that represents a command line output stream,
+/// A struct that represents a command line output stream,
 /// either [`Stdout`] or a [`File`] along with it's path
 ///
 /// It is designed to be used with the [`clap` crate](https://docs.rs/clap/latest) when taking a file name as an
@@ -40,6 +46,14 @@ use crate::http::HttpWriter;
 ///     /// path to file, use '-' for stdout
 ///     #[clap(value_parser)]
 ///     output_file: Output,
+///
+///     /// default name for file is user passes in a directory
+///     #[clap(value_parser = clap::value_parser!(Output).default_name("run.log"))]
+///     log_file: Output,
+///
+///     /// Write output atomically using temp file and atomic rename
+///     #[clap(value_parser = clap::value_parser!(Output).atomic())]
+///     config_file: Output,
 /// }
 /// # }
 /// ```
@@ -80,15 +94,28 @@ impl OutputStream {
     fn new(path: &ClioPath, size: Option<u64>) -> Result<Self> {
         Ok(match &path.path {
             ClioPathEnum::Std(_) => OutputStream::Stdout(io::stdout()),
-            ClioPathEnum::Local(path) => {
-                let file = open_rw(path)?;
-                if is_fifo(&file.metadata()?) {
-                    OutputStream::Pipe(file)
-                } else {
-                    if let Some(size) = size {
-                        file.set_len(size)?;
+            ClioPathEnum::Local(local_path) => {
+                if path.atomic && !path.is_fifo() {
+                    assert_not_dir(path)?;
+                    if let Some(parent) = path.safe_parent() {
+                        assert_is_dir(parent)?;
+                        let tmp = tempfile::Builder::new()
+                            .prefix(".atomicwrite")
+                            .tempfile_in(parent)?;
+                        OutputStream::AtomicFile(tmp)
+                    } else {
+                        return Err(not_found_error().into());
                     }
-                    OutputStream::File(file)
+                } else {
+                    let file = open_rw(local_path)?;
+                    if is_fifo(&file.metadata()?) {
+                        OutputStream::Pipe(file)
+                    } else {
+                        if let Some(size) = size {
+                            file.set_len(size)?;
+                        }
+                        OutputStream::File(file)
+                    }
                 }
             }
             #[cfg(feature = "http")]
@@ -135,12 +162,17 @@ impl Output {
 
     /// Syncs the file to disk or closes any HTTP connections and returns any errors
     /// or on the file if a regular file
+    /// For atomic files this must be called to perform the final atomic swap
     pub fn finish(mut self) -> Result<()> {
         self.flush()?;
         match self.stream {
             OutputStream::Stdout(_) => Ok(()),
             OutputStream::Pipe(_) => Ok(()),
             OutputStream::File(file) => Ok(file.sync_data()?),
+            OutputStream::AtomicFile(tmp) => {
+                tmp.persist(self.path.path())?;
+                Ok(())
+            }
             #[cfg(feature = "http")]
             OutputStream::Http(http) => Ok(http.finish()?),
         }
@@ -164,6 +196,7 @@ impl Output {
             OutputStream::Stdout(stdout) => Box::new(stdout.lock()),
             OutputStream::Pipe(pipe) => Box::new(pipe),
             OutputStream::File(file) => Box::new(file),
+            OutputStream::AtomicFile(file) => Box::new(file),
             #[cfg(feature = "http")]
             OutputStream::Http(http) => Box::new(http),
         }
@@ -186,7 +219,10 @@ impl Output {
     /// Returns `true` if this [`Output`] is a file,
     /// and `false` if this [`Output`] is std out or a pipe
     pub fn can_seek(&self) -> bool {
-        matches!(self.stream, OutputStream::File(_))
+        matches!(
+            self.stream,
+            OutputStream::File(_) | OutputStream::AtomicFile(_)
+        )
     }
 }
 
@@ -198,6 +234,7 @@ impl Write for Output {
             OutputStream::Stdout(stdout) => stdout.flush(),
             OutputStream::Pipe(pipe) => pipe.flush(),
             OutputStream::File(file) => file.flush(),
+            OutputStream::AtomicFile(file) => file.flush(),
             #[cfg(feature = "http")]
             OutputStream::Http(http) => http.flush(),
         }
@@ -207,6 +244,7 @@ impl Write for Output {
             OutputStream::Stdout(stdout) => stdout.write(buf),
             OutputStream::Pipe(pipe) => pipe.write(buf),
             OutputStream::File(file) => file.write(buf),
+            OutputStream::AtomicFile(file) => file.write(buf),
             #[cfg(feature = "http")]
             OutputStream::Http(http) => http.write(buf),
         }
@@ -217,6 +255,7 @@ impl Seek for Output {
     fn seek(&mut self, pos: io::SeekFrom) -> IoResult<u64> {
         match &mut self.stream {
             OutputStream::File(file) => file.seek(pos),
+            OutputStream::AtomicFile(file) => file.seek(pos),
             _ => Err(seek_error()),
         }
     }
@@ -231,17 +270,20 @@ impl OutputPath {
         crate::Error: From<<S as TryInto<ClioPath>>::Error>,
     {
         let path: ClioPath = path.try_into()?.with_direction(InOut::Out);
-        if path.is_local() && !path.is_file() {
-            assert_not_dir(&path)?;
-            if path.ends_with_slash() {
-                return Err(not_found_error().into());
-            }
-            if let Some(parent) = path.parent() {
-                if parent != Path::new("") {
-                    assert_is_dir(parent)?;
-                }
+        if path.is_local() {
+            if path.is_file() && !path.atomic {
+                assert_writeable(&path)?;
             } else {
-                return Err(not_found_error().into());
+                assert_not_dir(&path)?;
+                if path.ends_with_slash() {
+                    return Err(not_found_error().into());
+                }
+                if let Some(parent) = path.safe_parent() {
+                    assert_is_dir(parent)?;
+                    assert_writeable(parent)?;
+                } else {
+                    return Err(not_found_error().into());
+                }
             }
         }
         Ok(OutputPath { path })

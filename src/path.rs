@@ -1,4 +1,4 @@
-use crate::{impl_try_from, CachedInput, Input, Output, Result};
+use crate::{impl_try_from, is_fifo, CachedInput, Input, Output, Result};
 
 use std::convert::TryFrom;
 use std::ffi::{OsStr, OsString};
@@ -42,6 +42,7 @@ use {
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct ClioPath {
     pub(crate) path: ClioPathEnum,
+    pub(crate) atomic: bool,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
@@ -83,6 +84,7 @@ impl ClioPath {
     pub fn new<S: AsRef<OsStr>>(path: S) -> Result<Self> {
         Ok(ClioPath {
             path: ClioPathEnum::new(path.as_ref(), None)?,
+            atomic: false,
         })
     }
 
@@ -90,6 +92,7 @@ impl ClioPath {
     pub fn std() -> Self {
         ClioPath {
             path: ClioPathEnum::Std(None),
+            atomic: false,
         }
     }
 
@@ -99,6 +102,7 @@ impl ClioPath {
                 ClioPathEnum::Std(_) => ClioPathEnum::Std(Some(direction)),
                 x => x,
             },
+            atomic: self.atomic,
         }
     }
     /// Updates [`self.file_name`] to `file_name`.
@@ -230,6 +234,21 @@ impl ClioPath {
         matches!(self.path, ClioPathEnum::Local(_))
     }
 
+    pub(crate) fn is_fifo(&self) -> bool {
+        match &self.path {
+            ClioPathEnum::Local(path) => {
+                if let Ok(meta) = path.metadata() {
+                    is_fifo(&meta)
+                } else {
+                    false
+                }
+            }
+            ClioPathEnum::Std(_) => true,
+            #[cfg(feature = "http")]
+            ClioPathEnum::Http(_) => false,
+        }
+    }
+
     /// Returns `true` if this path ends with a `/`
     ///
     /// A trailing slash is often used by command line arguments
@@ -300,6 +319,20 @@ impl ClioPath {
             ClioPathEnum::Local(path) => path.as_path(),
             #[cfg(feature = "http")]
             ClioPathEnum::Http(url) => Path::new(url.path()),
+        }
+    }
+
+    pub(crate) fn safe_parent(&self) -> Option<&Path> {
+        match &self.path {
+            ClioPathEnum::Local(path) => {
+                let parent = path.parent()?;
+                if parent == Path::new("") {
+                    Some(Path::new("."))
+                } else {
+                    Some(parent)
+                }
+            }
+            _ => None,
         }
     }
 

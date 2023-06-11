@@ -88,20 +88,40 @@ pub use crate::path::ClioPath;
 use std::fs::Metadata;
 use std::path::Path;
 
-#[cfg(not(unix))]
-fn is_fifo(_: &Metadata) -> bool {
-    false
-}
-
-#[cfg(unix)]
 fn is_fifo(metadata: &Metadata) -> bool {
-    use std::os::unix::fs::FileTypeExt;
-    metadata.file_type().is_fifo()
+    cfg_if::cfg_if! {
+        if #[cfg(unix)] {
+            use std::os::unix::fs::FileTypeExt;
+            metadata.file_type().is_fifo()
+        } else {
+            false
+        }
+    }
 }
 
 fn assert_exists(path: &Path) -> Result<()> {
     if !path.exists() {
         return Err(not_found_error().into());
+    }
+    Ok(())
+}
+
+fn assert_readable(path: &Path) -> Result<()> {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let permissions = path.metadata()?.permissions();
+        if (permissions.mode() & 0o444) == 0 {
+            return Err(permission_error().into());
+        }
+    }
+    Ok(())
+}
+
+fn assert_writeable(path: &Path) -> Result<()> {
+    let permissions = path.metadata()?.permissions();
+    if permissions.readonly() {
+        return Err(permission_error().into());
     }
     Ok(())
 }
@@ -252,6 +272,7 @@ macro_rules! impl_try_from {
 use error::dir_error;
 use error::not_dir_error;
 use error::not_found_error;
+use error::permission_error;
 pub(crate) use impl_try_from;
 
 #[cfg(test)]
