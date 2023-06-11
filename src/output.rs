@@ -1,17 +1,30 @@
 use crate::error::{not_found_error, seek_error};
-use crate::{
-    assert_is_dir, assert_not_dir, ends_with_slash, impl_try_from, is_fifo, Error, Result,
-};
+use crate::path::{ClioPathEnum, InOut};
+use crate::{assert_is_dir, assert_not_dir, impl_try_from, is_fifo, ClioPath, Error, Result};
 
 use std::convert::TryFrom;
-use std::ffi::{OsStr, OsString};
+use std::ffi::OsStr;
 use std::fmt::{self, Debug, Display};
 use std::fs::{File, OpenOptions};
 use std::io::{self, Result as IoResult, Seek, Stdout, Write};
 use std::path::Path;
 
+#[derive(Debug)]
+enum OutputStream {
+    /// a [`Stdout`] when the path was `-`
+    Stdout(Stdout),
+    /// a [`File`] represeinting the named pipe e.g. crated with `mkfifo`
+    Pipe(File),
+    /// a normal [`File`] opened from the path
+    File(File),
+    #[cfg(feature = "http")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "http")))]
+    /// a writer that will upload the body the the HTTP server
+    Http(Box<HttpWriter>),
+}
+
 #[cfg(feature = "http")]
-use crate::http::{is_http, try_to_url, HttpWriter};
+use crate::http::HttpWriter;
 /// An enum that represents a command line output stream,
 /// either [`Stdout`] or a [`File`] along with it's path
 ///
@@ -31,53 +44,16 @@ use crate::http::{is_http, try_to_url, HttpWriter};
 /// # }
 /// ```
 #[derive(Debug)]
-pub enum Output {
-    /// a [`Stdout`] when the path was `-`
-    Stdout(Stdout),
-    /// a [`File`] represeinting the named pipe e.g. crated with `mkfifo`
-    Pipe(OsString, File),
-    /// a normal [`File`] opened from the path
-    File(OsString, File),
-    #[cfg(feature = "http")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "http")))]
-    /// a writer that will upload the body the the HTTP server
-    Http(String, Box<HttpWriter>),
-}
-
-/// A builder for [Output](crate::Output) that allows setting the size before writing.
-/// This is mostly usefull with the "http" feature for setting the Content-Length header
-///
-/// It is designed to be used with the [`clap` crate](https://docs.rs/clap/latest) when taking a file name as an
-/// argument to CLI app
-/// ```
-/// # #[cfg(feature="clap-parse")]{
-/// use clap::Parser;
-/// use clio::SizedOutput;
-///
-/// #[derive(Parser)]
-/// struct Opt {
-///     /// path to file, use '-' for stdout
-///     #[clap(value_parser)]
-///     output_file: SizedOutput,
-/// }
-/// # }
-/// ```
-#[derive(Debug)]
-pub enum SizedOutput {
-    /// a [`Stdout`] when the path was `-`
-    Stdout(Stdout),
-    /// a [`File`] represeinting the named pipe e.g. crated with `mkfifo`
-    Pipe(OsString, File),
-    /// a normal [`File`] opened from the path
-    File(OsString, File),
-    #[cfg(feature = "http")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "http")))]
-    /// the url to try uploading to
-    Http(String),
+pub struct Output {
+    path: ClioPath,
+    stream: OutputStream,
 }
 
 /// A builder for [Output](crate::Output) that validates the path but
 /// defers creating it until you call the [create](crate::OutputPath::create) method.
+///
+/// The [with_len](crate::OutputPath::with_len) allows setting the size before writing.
+/// This is mostly usefull with the "http" feature for setting the Content-Length header
 ///
 /// It is designed to be used with the [`clap` crate](https://docs.rs/clap/latest) when taking a file name as an
 /// argument to CLI app
@@ -94,20 +70,58 @@ pub enum SizedOutput {
 /// }
 /// # }
 /// ```
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct OutputPath {
-    path: OsString,
+    path: ClioPath,
+}
+
+impl OutputStream {
+    /// Contructs a new output either by opening/creating the file or for '-' returning stdout
+    fn new(path: &ClioPath, size: Option<u64>) -> Result<Self> {
+        Ok(match &path.path {
+            ClioPathEnum::Std(_) => OutputStream::Stdout(io::stdout()),
+            ClioPathEnum::Local(path) => {
+                let file = open_rw(path)?;
+                if is_fifo(&file.metadata()?) {
+                    OutputStream::Pipe(file)
+                } else {
+                    if let Some(size) = size {
+                        file.set_len(size)?;
+                    }
+                    OutputStream::File(file)
+                }
+            }
+            #[cfg(feature = "http")]
+            ClioPathEnum::Http(url) => {
+                OutputStream::Http(Box::new(HttpWriter::new(url.as_str(), size)?))
+            }
+        })
+    }
 }
 
 impl Output {
     /// Contructs a new output either by opening/creating the file or for '-' returning stdout
-    pub fn new<S: AsRef<OsStr>>(path: S) -> Result<Self> {
-        SizedOutput::new(path)?.without_len()
+    pub fn new<S: TryInto<ClioPath>>(path: S) -> Result<Self>
+    where
+        crate::Error: From<<S as TryInto<ClioPath>>::Error>,
+    {
+        OutputPath::new(path)?.create()
+    }
+
+    /// convert to an normal [`Output`] setting the length of the file to size if it is `Some`
+    pub(crate) fn maybe_with_len(path: ClioPath, size: Option<u64>) -> Result<Self> {
+        Ok(Output {
+            stream: OutputStream::new(&path, size)?,
+            path,
+        })
     }
 
     /// Contructs a new output for stdout
     pub fn std() -> Self {
-        Output::Stdout(io::stdout())
+        Output {
+            path: ClioPath::std().with_direction(InOut::Out),
+            stream: OutputStream::Stdout(io::stdout()),
+        }
     }
 
     /// Contructs a new output either by opening/creating the file or for '-' returning stdout
@@ -123,12 +137,12 @@ impl Output {
     /// or on the file if a regular file
     pub fn finish(mut self) -> Result<()> {
         self.flush()?;
-        match self {
-            Output::Stdout(_) => Ok(()),
-            Output::Pipe(_, _) => Ok(()),
-            Output::File(_, file) => Ok(file.sync_data()?),
+        match self.stream {
+            OutputStream::Stdout(_) => Ok(()),
+            OutputStream::Pipe(_) => Ok(()),
+            OutputStream::File(file) => Ok(file.sync_data()?),
             #[cfg(feature = "http")]
-            Output::Http(_, http) => Ok(http.finish()?),
+            OutputStream::Http(http) => Ok(http.finish()?),
         }
     }
 
@@ -146,24 +160,33 @@ impl Output {
     /// # }
     /// ```
     pub fn lock<'a>(&'a mut self) -> Box<dyn Write + 'a> {
-        match self {
-            Output::Stdout(stdout) => Box::new(stdout.lock()),
-            Output::Pipe(_, pipe) => Box::new(pipe),
-            Output::File(_, file) => Box::new(file),
+        match &mut self.stream {
+            OutputStream::Stdout(stdout) => Box::new(stdout.lock()),
+            OutputStream::Pipe(pipe) => Box::new(pipe),
+            OutputStream::File(file) => Box::new(file),
             #[cfg(feature = "http")]
-            Output::Http(_, http) => Box::new(http),
+            OutputStream::Http(http) => Box::new(http),
+        }
+    }
+
+    /// If output is a file, returns a reference to the file,
+    /// otherwise if output is stdout or a pipe returns none.
+    pub fn get_file(&mut self) -> Option<&mut File> {
+        match &mut self.stream {
+            OutputStream::File(file) => Some(file),
+            _ => None,
         }
     }
 
     /// The original path used to create this [`Output`]
-    pub fn path(&self) -> &OsStr {
-        match self {
-            Output::Stdout(_) => OsStr::new("-"),
-            Output::Pipe(path, _) => path,
-            Output::File(path, _) => path,
-            #[cfg(feature = "http")]
-            Output::Http(url, _) => OsStr::new(url),
-        }
+    pub fn path(&self) -> &ClioPath {
+        &self.path
+    }
+
+    /// Returns `true` if this [`Output`] is a file,
+    /// and `false` if this [`Output`] is std out or a pipe
+    pub fn can_seek(&self) -> bool {
+        matches!(self.stream, OutputStream::File(_))
     }
 }
 
@@ -171,130 +194,49 @@ impl_try_from!(Output);
 
 impl Write for Output {
     fn flush(&mut self) -> IoResult<()> {
-        match self {
-            Output::Stdout(stdout) => stdout.flush(),
-            Output::Pipe(_, pipe) => pipe.flush(),
-            Output::File(_, file) => file.flush(),
+        match &mut self.stream {
+            OutputStream::Stdout(stdout) => stdout.flush(),
+            OutputStream::Pipe(pipe) => pipe.flush(),
+            OutputStream::File(file) => file.flush(),
             #[cfg(feature = "http")]
-            Output::Http(_, http) => http.flush(),
+            OutputStream::Http(http) => http.flush(),
         }
     }
     fn write(&mut self, buf: &[u8]) -> IoResult<usize> {
-        match self {
-            Output::Stdout(stdout) => stdout.write(buf),
-            Output::Pipe(_, pipe) => pipe.write(buf),
-            Output::File(_, file) => file.write(buf),
+        match &mut self.stream {
+            OutputStream::Stdout(stdout) => stdout.write(buf),
+            OutputStream::Pipe(pipe) => pipe.write(buf),
+            OutputStream::File(file) => file.write(buf),
             #[cfg(feature = "http")]
-            Output::Http(_, http) => http.write(buf),
+            OutputStream::Http(http) => http.write(buf),
         }
     }
 }
 
 impl Seek for Output {
     fn seek(&mut self, pos: io::SeekFrom) -> IoResult<u64> {
-        match self {
-            Output::File(_, file) => file.seek(pos),
+        match &mut self.stream {
+            OutputStream::File(file) => file.seek(pos),
             _ => Err(seek_error()),
         }
     }
 }
 
-impl SizedOutput {
-    /// Contructs a new output either by opening/creating the file or for '-' returning stdout
-    pub fn new<S: AsRef<OsStr>>(path: S) -> Result<Self> {
-        let path = path.as_ref();
-        if path == "-" {
-            Ok(Self::std())
-        } else {
-            #[cfg(feature = "http")]
-            if is_http(path) {
-                return Ok(SizedOutput::Http(try_to_url(path)?));
-            }
-            let file = open_rw(path)?;
-            if is_fifo(&file)? {
-                Ok(SizedOutput::Pipe(path.to_os_string(), file))
-            } else {
-                Ok(SizedOutput::File(path.to_os_string(), file))
-            }
-        }
-    }
-
-    /// Contructs a new output to stdout
-    pub fn std() -> Self {
-        SizedOutput::Stdout(io::stdout())
-    }
-
-    /// Contructs a new [`SizedOutput`] either by opening/creating the file or for '-' returning stdout
-    ///
-    /// The error is converted to a [`OsString`](std::ffi::OsString) so that [stuctopt](https://docs.rs/structopt/latest/structopt/#custom-string-parsers) can show it to the user.
-    ///
-    /// It is recomended that you use [`TryFrom::try_from`] and [clap 3.0](https://docs.rs/clap/latest/clap/index.html) instead.
-    pub fn try_from_os_str(path: &OsStr) -> std::result::Result<Self, std::ffi::OsString> {
-        TryFrom::try_from(path).map_err(|e: Error| e.to_os_string(path))
-    }
-
-    /// set the length of the file, either using [`File::set_len`] or as the content-length header of the http put
-    pub fn with_len(self, size: u64) -> Result<Output> {
-        self.maybe_with_len(Some(size))
-    }
-
-    /// convert to an normal [`Output`] without setting the length
-    pub fn without_len(self) -> Result<Output> {
-        self.maybe_with_len(None)
-    }
-
-    /// convert to an normal [`Output`] setting the length of the file to size if it is `Some`
-    pub fn maybe_with_len(self, size: Option<u64>) -> Result<Output> {
-        Ok(match self {
-            SizedOutput::Stdout(stdout) => Output::Stdout(stdout),
-            SizedOutput::Pipe(path, pipe) => Output::Pipe(path, pipe),
-            SizedOutput::File(path, file) => {
-                if let Some(size) = size {
-                    file.set_len(size)?;
-                }
-                Output::File(path, file)
-            }
-            #[cfg(feature = "http")]
-            SizedOutput::Http(path) => {
-                let writer = HttpWriter::new(&path, size)?;
-                Output::Http(path, Box::new(writer))
-            }
-        })
-    }
-
-    /// The original path used to create this [`SizedOutput`]
-    pub fn path(&self) -> &OsStr {
-        match self {
-            SizedOutput::Stdout(_) => OsStr::new("-"),
-            SizedOutput::Pipe(path, _) => path,
-            SizedOutput::File(path, _) => path,
-            #[cfg(feature = "http")]
-            SizedOutput::Http(url) => OsStr::new(url),
-        }
-    }
-}
-
-impl_try_from!(SizedOutput);
-
 impl OutputPath {
     /// Construct a new [`OutputPath`] from an string
     ///
     /// It checks if an output file could plausibly be created at that path
-    pub fn new<S: AsRef<OsStr>>(path: S) -> Result<Self> {
-        let path = path.as_ref().to_owned();
-        #[cfg(feature = "http")]
-        if is_http(&path) {
-            try_to_url(&path)?;
-            return Ok(OutputPath { path });
-        }
-
-        if path != "-" && !Path::new(&path).is_file() {
-            let path = Path::new(&path);
-            assert_not_dir(path)?;
-            if ends_with_slash(path.as_os_str()) {
+    pub fn new<S: TryInto<ClioPath>>(path: S) -> Result<Self>
+    where
+        crate::Error: From<<S as TryInto<ClioPath>>::Error>,
+    {
+        let path: ClioPath = path.try_into()?.with_direction(InOut::Out);
+        if path.is_local() && !path.is_file() {
+            assert_not_dir(&path)?;
+            if path.ends_with_slash() {
                 return Err(not_found_error().into());
             }
-            if let Some(parent) = Path::new(&path).parent() {
+            if let Some(parent) = path.parent() {
                 if parent != Path::new("") {
                     assert_is_dir(parent)?;
                 }
@@ -307,28 +249,51 @@ impl OutputPath {
 
     /// Contructs a new [`OutputPath`] of `"-"` for stdout
     pub fn std() -> Self {
-        OutputPath { path: "-".into() }
+        OutputPath {
+            path: ClioPath::std().with_direction(InOut::Out),
+        }
+    }
+
+    /// convert to an normal [`Output`] setting the length of the file to size if it is `Some`
+    pub fn maybe_with_len(self, size: Option<u64>) -> Result<Output> {
+        Output::maybe_with_len(self.path, size)
     }
 
     /// Creater the file with a predetermined length, either using [`File::set_len`] or as the `content-length` header of the http put
     pub fn create_with_len(self, size: u64) -> Result<Output> {
-        SizedOutput::new(&self.path)?.with_len(size)
+        self.maybe_with_len(Some(size))
     }
 
     /// Create an [`Output`] without setting the length
     pub fn create(self) -> Result<Output> {
-        Output::new(&self.path)
+        self.maybe_with_len(None)
     }
 
     /// The original path represented by this [`OutputPath`]
-    pub fn path(&self) -> &OsStr {
+    pub fn path(&self) -> &ClioPath {
         &self.path
+    }
+
+    /// Returns `true` if this [`OutputPath`] points to a file,
+    /// and `false` if this [`OutputPath`] is std out or points to a pipe.
+    /// Note that the file is not opened yet, so there are possible when you
+    /// open the file it might have changed.
+    pub fn can_seek(&self) -> bool {
+        if self.path.is_local() {
+            if let Ok(metadata) = self.path.metadata() {
+                !is_fifo(&metadata)
+            } else {
+                false
+            }
+        } else {
+            false
+        }
     }
 }
 
-impl_try_from!(OutputPath);
+impl_try_from!(OutputPath: Clone);
 
-fn open_rw(path: &OsStr) -> io::Result<File> {
+fn open_rw(path: &Path) -> io::Result<File> {
     OpenOptions::new()
         .read(true)
         .write(true)

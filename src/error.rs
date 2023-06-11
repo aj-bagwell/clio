@@ -1,4 +1,4 @@
-use std::convert::From;
+use std::convert::{From, Infallible};
 use std::ffi::{OsStr, OsString};
 use std::fmt::Display;
 use std::io::Error as IoError;
@@ -50,6 +50,12 @@ impl Error {
     }
 }
 
+impl From<Infallible> for Error {
+    fn from(_err: Infallible) -> Self {
+        unreachable!("Infallible should not exist")
+    }
+}
+
 impl From<IoError> for Error {
     fn from(err: IoError) -> Self {
         Error::Io(err)
@@ -62,6 +68,16 @@ impl From<Error> for IoError {
             Error::Io(err) => err,
             #[cfg(feature = "http")]
             Error::Http { .. } => IoError::new(err.kind(), err.to_string()),
+        }
+    }
+}
+
+#[cfg(feature = "http")]
+impl From<url::ParseError> for Error {
+    fn from(err: url::ParseError) -> Self {
+        Error::Http {
+            code: 400,
+            message: err.to_string(),
         }
     }
 }

@@ -1,13 +1,13 @@
 use crate::error::{dir_error, seek_error};
 #[cfg(feature = "http")]
-use crate::http::{is_http, try_to_url, HttpReader};
-use crate::{assert_exists, assert_not_dir, impl_try_from, is_fifo, Error, Result};
+use crate::http::HttpReader;
+use crate::path::{ClioPathEnum, InOut};
+use crate::{assert_exists, assert_not_dir, impl_try_from, is_fifo, ClioPath, Error, Result};
 use std::convert::TryFrom;
-use std::ffi::{OsStr, OsString};
+use std::ffi::OsStr;
 use std::fmt::{self, Debug, Display};
 use std::fs::File;
 use std::io::{self, BufRead, BufReader, Cursor, Read, Result as IoResult, Seek, Stdin};
-use std::path::Path;
 
 /// An enum that represents a command line input stream,
 /// either [`Stdin`] or [`File`]
@@ -28,47 +28,56 @@ use std::path::Path;
 /// # }
 /// ```
 #[derive(Debug)]
-pub enum Input {
+pub struct Input {
+    path: ClioPath,
+    stream: InputStream,
+}
+#[derive(Debug)]
+enum InputStream {
     /// a [`Stdin`] when the path was `-`
     Stdin(Stdin),
     /// a [`File`] represeinting the named pipe e.g. if called with `<(cat /dev/null)`
-    Pipe(OsString, File),
+    Pipe(File),
     /// a normal [`File`] opened from the path
-    File(OsString, File),
+    File(File),
     #[cfg(feature = "http")]
     #[cfg_attr(docsrs, doc(cfg(feature = "http")))]
     /// a reader that will download response from the HTTP server
-    Http(OsString, HttpReader),
+    Http(HttpReader),
 }
 
 impl Input {
     /// Contructs a new input either by opening the file or for '-' returning stdin
-    pub fn new<S: AsRef<OsStr>>(path: S) -> Result<Self> {
-        let path = path.as_ref();
-        if path == "-" {
-            Ok(Self::std())
-        } else {
+    pub fn new<S: TryInto<ClioPath>>(path: S) -> Result<Self>
+    where
+        crate::Error: From<<S as TryInto<ClioPath>>::Error>,
+    {
+        let path = path.try_into()?;
+        let stream = match &path.path {
+            ClioPathEnum::Std(_) => InputStream::Stdin(io::stdin()),
+            ClioPathEnum::Local(file_path) => {
+                let file = File::open(file_path)?;
+                if file.metadata()?.is_dir() {
+                    return Err(dir_error().into());
+                }
+                if is_fifo(&file.metadata()?) {
+                    InputStream::Pipe(file)
+                } else {
+                    InputStream::File(file)
+                }
+            }
             #[cfg(feature = "http")]
-            if is_http(path) {
-                let url = try_to_url(path)?;
-                let reader = HttpReader::new(&url)?;
-                return Ok(Input::Http(path.to_os_string(), reader));
-            }
-            let file = File::open(path)?;
-            if file.metadata()?.is_dir() {
-                return Err(dir_error().into());
-            }
-            if is_fifo(&file)? {
-                Ok(Input::Pipe(path.to_os_string(), file))
-            } else {
-                Ok(Input::File(path.to_os_string(), file))
-            }
-        }
+            ClioPathEnum::Http(url) => InputStream::Http(HttpReader::new(url.as_str())?),
+        };
+        Ok(Input { path, stream })
     }
 
     /// Contructs a new input for stdin
     pub fn std() -> Self {
-        Input::Stdin(io::stdin())
+        Input {
+            path: ClioPath::std().with_direction(InOut::In),
+            stream: InputStream::Stdin(io::stdin()),
+        }
     }
 
     /// Contructs a new input either by opening the file or for '-' returning stdin
@@ -91,12 +100,21 @@ impl Input {
     /// assert_eq!(Some(3), file.len());
     /// ```
     pub fn len(&self) -> Option<u64> {
-        match self {
-            Input::Stdin(_) => None,
-            Input::Pipe(_, _) => None,
-            Input::File(_, file) => file.metadata().ok().map(|x| x.len()),
+        match &self.stream {
+            InputStream::Stdin(_) => None,
+            InputStream::Pipe(_) => None,
+            InputStream::File(file) => file.metadata().ok().map(|x| x.len()),
             #[cfg(feature = "http")]
-            Input::Http(_, http) => http.len(),
+            InputStream::Http(http) => http.len(),
+        }
+    }
+
+    /// If input is a file, returns a reference to the file,
+    /// otherwise if input is stdin or a pipe returns none.
+    pub fn get_file(&mut self) -> Option<&mut File> {
+        match &mut self.stream {
+            InputStream::File(file) => Some(file),
+            _ => None,
         }
     }
 
@@ -130,24 +148,24 @@ impl Input {
     /// # }
     /// ```
     pub fn lock<'a>(&'a mut self) -> Box<dyn BufRead + 'a> {
-        match self {
-            Input::Stdin(stdin) => Box::new(stdin.lock()),
-            Input::Pipe(_, pipe) => Box::new(BufReader::new(pipe)),
-            Input::File(_, file) => Box::new(BufReader::new(file)),
+        match &mut self.stream {
+            InputStream::Stdin(stdin) => Box::new(stdin.lock()),
+            InputStream::Pipe(pipe) => Box::new(BufReader::new(pipe)),
+            InputStream::File(file) => Box::new(BufReader::new(file)),
             #[cfg(feature = "http")]
-            Input::Http(_, http) => Box::new(BufReader::new(http)),
+            InputStream::Http(http) => Box::new(BufReader::new(http)),
         }
     }
 
     /// Returns the path/url used to create the input
-    pub fn path(&self) -> &OsStr {
-        match self {
-            Input::Stdin(_) => "-".as_ref(),
-            Input::Pipe(path, _) => path,
-            Input::File(path, _) => path,
-            #[cfg(feature = "http")]
-            Input::Http(url, _) => url,
-        }
+    pub fn path(&self) -> &ClioPath {
+        &self.path
+    }
+
+    /// Returns `true` if this [`Input`] is a file,
+    /// and `false` if this [`Input`] is std out or a pipe
+    pub fn can_seek(&self) -> bool {
+        matches!(self.stream, InputStream::File(_))
     }
 }
 
@@ -155,21 +173,21 @@ impl_try_from!(Input);
 
 impl Read for Input {
     fn read(&mut self, buf: &mut [u8]) -> IoResult<usize> {
-        match self {
-            Input::Stdin(stdin) => stdin.read(buf),
-            Input::Pipe(_, pipe) => pipe.read(buf),
-            Input::File(_, file) => file.read(buf),
+        match &mut self.stream {
+            InputStream::Stdin(stdin) => stdin.read(buf),
+            InputStream::Pipe(pipe) => pipe.read(buf),
+            InputStream::File(file) => file.read(buf),
             #[cfg(feature = "http")]
-            Input::Http(_, reader) => reader.read(buf),
+            InputStream::Http(reader) => reader.read(buf),
         }
     }
 }
 
 impl Seek for Input {
     fn seek(&mut self, pos: io::SeekFrom) -> IoResult<u64> {
-        match self {
-            Input::Pipe(_, pipe) => pipe.seek(pos),
-            Input::File(_, file) => file.seek(pos),
+        match &mut self.stream {
+            InputStream::Pipe(pipe) => pipe.seek(pos),
+            InputStream::File(file) => file.seek(pos),
             _ => Err(seek_error()),
         }
     }
@@ -195,7 +213,7 @@ impl Seek for Input {
 /// ```
 #[derive(Debug, Clone)]
 pub struct CachedInput {
-    path: OsString,
+    path: ClioPath,
     data: Cursor<Vec<u8>>,
 }
 
@@ -204,21 +222,26 @@ impl CachedInput {
     ///
     /// Useful if you want to use the input twice (see [reset](Self::reset)), or
     /// need to know the size.
-    pub fn new<S: AsRef<OsStr>>(path: S) -> Result<Self> {
+    pub fn new<S: TryInto<ClioPath>>(path: S) -> Result<Self>
+    where
+        crate::Error: From<<S as TryInto<ClioPath>>::Error>,
+    {
         let mut source = Input::new(path)?;
-        let path = source.path().to_os_string();
         let capacity = source.len().unwrap_or(4096) as usize;
         let mut data = Cursor::new(Vec::with_capacity(capacity));
         io::copy(&mut source, &mut data)?;
         data.set_position(0);
-        Ok(CachedInput { path, data })
+        Ok(CachedInput {
+            path: source.path,
+            data,
+        })
     }
 
     /// Reads all the data from stdin into memmory and stores it in a new CachedInput.
     ///
     /// This will block until std in is closed.
     pub fn std() -> Result<Self> {
-        Self::new("-")
+        Self::new(ClioPath::std().with_direction(InOut::In))
     }
 
     /// Contructs a new [`CachedInput`] either by opening the file or for '-' stdin and reading
@@ -258,7 +281,7 @@ impl CachedInput {
     }
 
     /// Returns the path/url used to create the input
-    pub fn path(&self) -> &OsStr {
+    pub fn path(&self) -> &ClioPath {
         &self.path
     }
 
@@ -300,28 +323,7 @@ impl Seek for CachedInput {
     }
 }
 
-impl TryFrom<&OsStr> for CachedInput {
-    type Error = Error;
-    fn try_from(file_name: &OsStr) -> Result<Self> {
-        CachedInput::new(file_name)
-    }
-}
-
-/// formats the [`CachedInput`] as the path it was created from
-impl Display for CachedInput {
-    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(fmt, "{:?}", self.path)
-    }
-}
-
-#[cfg(feature = "clap-parse")]
-#[cfg_attr(docsrs, doc(cfg(feature = "clap-parse")))]
-impl clap::builder::ValueParserFactory for CachedInput {
-    type Parser = crate::clapers::OsStrParser<CachedInput>;
-    fn value_parser() -> Self::Parser {
-        crate::clapers::OsStrParser::new()
-    }
-}
+impl_try_from!(CachedInput: Clone - Default);
 
 /// A builder for [Input](crate::Input) that validates the path but
 /// defers creating it until you call the [create](crate::InputPath::open) method.
@@ -341,44 +343,43 @@ impl clap::builder::ValueParserFactory for CachedInput {
 /// }
 /// # }
 /// ```
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct InputPath {
-    path: OsString,
+    path: ClioPath,
 }
 
 impl InputPath {
     /// Contructs a new [`InputPath`] representing the path and checking that the file exists and is readable
     ///
     /// note: even if this passes open may still fail if e.g. the file was delete in between
-    pub fn new<S: AsRef<OsStr>>(path: S) -> Result<Self> {
-        let path = path.as_ref().to_owned();
-        #[cfg(feature = "http")]
-        if is_http(&path) {
-            try_to_url(&path)?;
-            return Ok(InputPath { path });
-        }
-        if path != "-" {
-            let path = Path::new(&path);
-            assert_not_dir(path)?;
-            assert_exists(path)?;
-        }
+    pub fn new<S: TryInto<ClioPath>>(path: S) -> Result<Self>
+    where
+        crate::Error: From<<S as TryInto<ClioPath>>::Error>,
+    {
+        let path: ClioPath = path.try_into()?.with_direction(InOut::In);
+        if path.is_local() {
+            assert_not_dir(&path)?;
+            assert_exists(&path)?;
+        };
         Ok(InputPath { path })
     }
 
     /// Contructs a new [`InputPath`] to stdout ("-")
     pub fn std() -> Self {
-        InputPath { path: "-".into() }
+        InputPath {
+            path: ClioPath::std().with_direction(InOut::In),
+        }
     }
 
     /// Create an [`Input`] by opening the file or for '-' returning stdin
     pub fn open(self) -> Result<Input> {
-        Input::new(&self.path)
+        self.path.open()
     }
 
     /// The original path used to create this [`InputPath`]
-    pub fn path(&self) -> &OsStr {
+    pub fn path(&self) -> &ClioPath {
         &self.path
     }
 }
 
-impl_try_from!(InputPath);
+impl_try_from!(InputPath: Clone);

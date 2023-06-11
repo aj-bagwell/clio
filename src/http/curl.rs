@@ -150,6 +150,7 @@ impl HttpReader {
         self.length
     }
 
+    #[allow(dead_code)]
     pub fn finish(self) -> Result<(), Error> {
         drop(self.read);
         self.rx

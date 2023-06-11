@@ -74,6 +74,7 @@ mod error;
 mod http;
 mod input;
 mod output;
+mod path;
 
 pub use crate::error::Error;
 pub use crate::error::Result;
@@ -82,38 +83,20 @@ pub use crate::input::Input;
 pub use crate::input::InputPath;
 pub use crate::output::Output;
 pub use crate::output::OutputPath;
-pub use crate::output::SizedOutput;
+pub use crate::path::ClioPath;
 
-use std::ffi::OsStr;
-use std::fs::File;
+use std::fs::Metadata;
 use std::path::Path;
 
 #[cfg(not(unix))]
-fn is_fifo(_: &File) -> Result<bool> {
-    Ok(false)
+fn is_fifo(_: &Metadata) -> bool {
+    false
 }
 
 #[cfg(unix)]
-fn is_fifo(file: &File) -> Result<bool> {
+fn is_fifo(metadata: &Metadata) -> bool {
     use std::os::unix::fs::FileTypeExt;
-    Ok(file.metadata()?.file_type().is_fifo())
-}
-
-#[cfg(unix)]
-fn ends_with_slash(path: &OsStr) -> bool {
-    use std::os::unix::ffi::OsStrExt;
-    path.as_bytes().ends_with(b"/")
-}
-
-#[cfg(windows)]
-fn ends_with_slash(path: &OsStr) -> bool {
-    use std::os::windows::ffi::OsStrExt;
-    path.encode_wide().last() == Some('/' as u16)
-}
-
-#[cfg(not(any(unix, windows)))]
-fn ends_with_slash(path: &OsStr) -> bool {
-    path.to_string_lossy().ends_with("/")
+    metadata.file_type().is_fifo()
 }
 
 fn assert_exists(path: &Path) -> Result<()> {
@@ -123,12 +106,12 @@ fn assert_exists(path: &Path) -> Result<()> {
     Ok(())
 }
 
-fn assert_not_dir(path: &Path) -> Result<()> {
+fn assert_not_dir(path: &ClioPath) -> Result<()> {
     if path.try_exists()? {
         if path.is_dir() {
             return Err(dir_error().into());
         }
-        if ends_with_slash(path.as_os_str()) {
+        if path.ends_with_slash() {
             return Err(not_dir_error().into());
         }
     }
@@ -150,11 +133,39 @@ trait Parseable: Clone + Sync + Send {}
 
 macro_rules! impl_try_from {
     ($struct_name:ident) => {
+        impl_try_from!($struct_name Base);
+        impl_try_from!($struct_name Default);
+
+        #[cfg(feature = "clap-parse")]
+        #[cfg_attr(docsrs, doc(cfg(feature = "clap-parse")))]
+        /// Opens a new handle on the file from the path that was used to create it
+        /// Probbably a bad idea to have two write handles to the same file or to std in
+        /// There is no effort done to make the clone be at the same position as the original
+        ///
+        /// This will panic if the file has been deleted
+        ///
+        /// Only included when using the `clap-parse` fature as it is needed for `value_parser`
+        impl Clone for $struct_name {
+            fn clone(&self) -> Self {
+                $struct_name::new(self.path().clone()).unwrap()
+            }
+        }
+    };
+    ($struct_name:ident: Clone) => {
+        impl_try_from!($struct_name Base);
+        impl_try_from!($struct_name Default);
+    };
+    ($struct_name:ident: Clone - Default) => {
+        impl_try_from!($struct_name Base);
+    };
+    ($struct_name:ident Default) => {
         impl Default for $struct_name {
             fn default() -> Self {
                 $struct_name::std()
             }
         }
+    };
+    ($struct_name:ident Base) => {
 
         impl TryFrom<&OsStr> for $struct_name {
             type Error = crate::Error;
@@ -163,10 +174,45 @@ macro_rules! impl_try_from {
             }
         }
 
+        impl TryFrom<&std::ffi::OsString> for $struct_name {
+            type Error = crate::Error;
+            fn try_from(file_name: &std::ffi::OsString) -> Result<Self> {
+                $struct_name::new(file_name)
+            }
+        }
+
+        impl TryFrom<&std::path::PathBuf> for $struct_name {
+            type Error = crate::Error;
+            fn try_from(file_name: &std::path::PathBuf) -> Result<Self> {
+                $struct_name::new(file_name)
+            }
+        }
+
+        impl TryFrom<&std::path::Path> for $struct_name {
+            type Error = crate::Error;
+            fn try_from(file_name: &std::path::Path) -> Result<Self> {
+                $struct_name::new(file_name)
+            }
+        }
+
+        impl TryFrom<&String> for $struct_name {
+            type Error = crate::Error;
+            fn try_from(file_name: &String) -> Result<Self> {
+                $struct_name::new(file_name)
+            }
+        }
+
+        impl TryFrom<&str> for $struct_name {
+            type Error = crate::Error;
+            fn try_from(file_name: &str) -> Result<Self> {
+                $struct_name::new(file_name)
+            }
+        }
+
         /// formats as the path it was created from
         impl Display for $struct_name {
             fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
-                write!(fmt, "{:?}", self.path())
+                write!(fmt, "{:?}", self.path().as_os_str())
             }
         }
 
@@ -176,20 +222,6 @@ macro_rules! impl_try_from {
             type Parser = crate::clapers::OsStrParser<$struct_name>;
             fn value_parser() -> Self::Parser {
                 crate::clapers::OsStrParser::new()
-            }
-        }
-
-        #[cfg(feature = "clap-parse")]
-        #[cfg_attr(docsrs, doc(cfg(feature = "clap-parse")))]
-        /// Opens a new handle on the file from the path that was used to create it
-        /// Probbably a very bad idea to have two handles to the same file
-        ///
-        /// This will panic if the file has been deleted
-        ///
-        /// Only included when using the `clap-parse` fature as it is needed for `value_parser`
-        impl Clone for $struct_name {
-            fn clone(&self) -> Self {
-                $struct_name::new(self.path()).unwrap()
             }
         }
 
@@ -208,7 +240,7 @@ pub(crate) use impl_try_from;
 mod tests {
     use super::*;
     use std::{
-        fs::{create_dir, write},
+        fs::{create_dir, write, File},
         io::Read,
     };
     use tempfile::{tempdir, TempDir};

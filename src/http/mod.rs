@@ -10,10 +10,11 @@ pub use self::ureq::*;
 
 use crate::{Error, Result};
 use std::ffi::OsStr;
+use url::Url;
 
-pub(crate) fn try_to_url(url: &OsStr) -> Result<String> {
+pub(crate) fn try_to_url(url: &OsStr) -> Result<Url> {
     if let Some(str) = url.to_str() {
-        Ok(str.to_owned())
+        Ok(Url::parse(str)?)
     } else {
         Err(Error::Http {
             code: 400,
