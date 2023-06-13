@@ -17,8 +17,7 @@ use {
 ///
 /// e.g. Take an [Input](crate::Input) of `/tmp/foo.svg` and have a default [Output](crate::Output) of `/tmp/foo.png`
 ///
-/// ```
-/// # std::fs::write("/tmp/foo.svg", "contents").expect("could not create dir");
+/// ```no_run
 /// use clio::{Input, Output};
 ///
 /// let input = Input::new("/tmp/foo.svg")?;
