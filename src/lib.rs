@@ -88,15 +88,15 @@ pub use crate::path::ClioPath;
 use std::fs::Metadata;
 use std::path::Path;
 
+#[cfg(not(unix))]
+fn is_fifo(_: &Metadata) -> bool {
+    false
+}
+
+#[cfg(unix)]
 fn is_fifo(metadata: &Metadata) -> bool {
-    cfg_if::cfg_if! {
-        if #[cfg(unix)] {
-            use std::os::unix::fs::FileTypeExt;
-            metadata.file_type().is_fifo()
-        } else {
-            false
-        }
-    }
+    use std::os::unix::fs::FileTypeExt;
+    metadata.file_type().is_fifo()
 }
 
 fn assert_exists(path: &Path) -> Result<()> {
@@ -106,14 +106,17 @@ fn assert_exists(path: &Path) -> Result<()> {
     Ok(())
 }
 
+#[cfg(not(unix))]
+fn assert_readable(_path: &Path) -> Result<()> {
+    Ok(())
+}
+
+#[cfg(unix)]
 fn assert_readable(path: &Path) -> Result<()> {
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        let permissions = path.metadata()?.permissions();
-        if (permissions.mode() & 0o444) == 0 {
-            return Err(permission_error().into());
-        }
+    use std::os::unix::fs::PermissionsExt;
+    let permissions = path.metadata()?.permissions();
+    if (permissions.mode() & 0o444) == 0 {
+        return Err(permission_error().into());
     }
     Ok(())
 }
