@@ -66,7 +66,7 @@ pub struct Output {
 /// A builder for [Output](crate::Output) that validates the path but
 /// defers creating it until you call the [create](crate::OutputPath::create) method.
 ///
-/// The [with_len](crate::OutputPath::with_len) allows setting the size before writing.
+/// The [create_with_len](crate::OutputPath::create_with_len) allows setting the size before writing.
 /// This is mostly usefull with the "http" feature for setting the Content-Length header
 ///
 /// It is designed to be used with the [`clap` crate](https://docs.rs/clap/latest) when taking a file name as an

@@ -60,7 +60,7 @@
 //! If a url is passed to [`Input::new`](crate::Input::new) then it will perform and HTTP `GET`.
 //!
 //! If a url is passed to [`Output::new`](crate::Output::new) then it will perform and HTTP `PUT`.
-//! You can use [`SizedOutput`](crate::SizedOutput) to set the size before the upload starts e.g.
+//! You can use [`OutputPath::create_with_len`](crate::OutputPath::create_with_len) to set the size before the upload starts e.g.
 //! needed if you are sending a file to S3.
 //! ### `http-ureq`
 //! bundles in [ureq](https://docs.rs/ureq) as a HTTP client.

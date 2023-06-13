@@ -328,7 +328,7 @@ impl Seek for CachedInput {
 impl_try_from!(CachedInput: Clone - Default);
 
 /// A builder for [Input](crate::Input) that validates the path but
-/// defers creating it until you call the [create](crate::InputPath::open) method.
+/// defers creating it until you call the [open](crate::InputPath::open) method.
 ///
 /// It is designed to be used with the [`clap` crate](https://docs.rs/clap/latest) when taking a file name as an
 /// argument to CLI app
@@ -374,7 +374,11 @@ impl InputPath {
         }
     }
 
-    /// Create an [`Input`] by opening the file or for '-' returning stdin
+    /// Create an [`Input`] by opening the file or for '-' returning stdin.
+    ///
+    /// This is unlikely to error as the path is checked when the [`InputPath`] was created by [`new`](InputPath::new)
+    /// but time of use/time of check means that things could have changed inbetween e.g. the file
+    /// could have been deleted.
     pub fn open(self) -> Result<Input> {
         self.path.open()
     }

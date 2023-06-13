@@ -12,12 +12,27 @@ use {
     url::Url,
 };
 /// A builder for [Input](crate::Input) and [Output](crate::Output).
-/// Unlike [InputPath](crate::InputPath) and [Output](crate::OutputPath) it does not
-/// validate the path until you try creating/opening it.
 ///
 /// It is designed to be used to get files related to the one passed in.
 ///
 /// e.g. Take an [Input](crate::Input) of `/tmp/foo.svg` and have a default [Output](crate::Output) of `/tmp/foo.png`
+///
+/// ```
+/// # std::fs::write("/tmp/foo.svg", "contents").expect("could not create dir");
+/// use clio::{Input, Output};
+///
+/// let input = Input::new("/tmp/foo.svg")?;
+/// let mut output_path = input.path().clone();
+/// output_path.set_extension("png");
+/// let output = output_path.create()?;
+///
+/// assert_eq!(output.path().as_os_str().to_string_lossy(), "/tmp/foo.png");
+/// # Ok::<(), clio::Error>(())
+/// ```
+/// Unlike [InputPath](crate::InputPath) and [OutputPath](crate::OutputPath) it does not
+/// validate the path until you try creating/opening it.
+///
+/// However you can add extra validation using the [`clap`] parser.
 /// ```
 /// # #[cfg(feature="clap-parse")]{
 /// use clap::Parser;
@@ -78,7 +93,7 @@ impl ClioPathEnum {
 }
 
 impl ClioPath {
-    /// Construct a new [`Path`] from an string
+    /// Construct a new [`ClioPath`] from an string
     ///
     /// `'-'` is treated as stdin/stdout
     pub fn new<S: AsRef<OsStr>>(path: S) -> Result<Self> {
@@ -88,7 +103,7 @@ impl ClioPath {
         })
     }
 
-    /// Contructs a new [`Path`] of `"-"` for stdout
+    /// Contructs a new [`ClioPath`] of `"-"` for stdout
     pub fn std() -> Self {
         ClioPath {
             path: ClioPathEnum::Std(None),
@@ -105,17 +120,9 @@ impl ClioPath {
             atomic: self.atomic,
         }
     }
-    /// Updates [`self.file_name`] to `file_name`.
+    /// Updates [`self.file_name`](Path::file_name) to `file_name`.
     ///
-    /// If [`self.file_name`] was [`None`], this is equivalent to pushing
-    /// `file_name`.
-    ///
-    /// Otherwise it is equivalent to calling [`pop`] and then pushing
-    /// `file_name`. The new path will be a sibling of the original path.
-    /// (That is, it will have the same parent.)
-    ///
-    /// [`self.file_name`]: Path::file_name
-    /// [`pop`]: PathBuf::pop
+    /// see [`PathBuf::set_file_name`] for more details
     ///
     /// # Examples
     ///
@@ -150,16 +157,9 @@ impl ClioPath {
         }
     }
 
-    /// Updates [`self.extension`] to `extension`.
+    /// Updates [`self.extension`](Path::extension) to `extension`.
     ///
-    /// Returns `false` and does nothing if [`self.file_name`] is [`None`],
-    /// returns `true` and updates the extension otherwise.
-    ///
-    /// If [`self.extension`] is [`None`], the extension is added; otherwise
-    /// it is replaced.
-    ///
-    /// [`self.file_name`]: Path::file_name
-    /// [`self.extension`]: Path::extension
+    /// see [`PathBuf::set_extension`] for more details
     ///
     /// # Examples
     ///
@@ -198,7 +198,7 @@ impl ClioPath {
 
     /// Extends `self` with `path`.
     ///
-    /// see [PathBuf::push] for more details
+    /// see [`PathBuf::push`] for more details
     ///
     ///
     /// ```
@@ -268,22 +268,22 @@ impl ClioPath {
         }
     }
 
-    /// Creater the file with a predetermined length, either using [`File::set_len`] or as the `content-length` header of the http put
+    /// Creater the file with a predetermined length, either using [`File::set_len`](std::fs::File::set_len) or as the `content-length` header of the http put
     pub fn create_with_len(self, size: u64) -> Result<Output> {
         Output::maybe_with_len(self, Some(size))
     }
 
-    /// Create an [`Output`] without setting the length
+    /// Create the file at this path and return it as an [`Output`] without setting the length
     pub fn create(self) -> Result<Output> {
         Output::maybe_with_len(self, None)
     }
 
-    /// Create an [`Input`]
+    /// Open the file at this path and return it as an [`Input`]
     pub fn open(self) -> Result<Input> {
         Input::new(self)
     }
 
-    /// Create a [`CachedInput`]
+    /// Read the entire the file at this path and return it as an  [`CachedInput`]
     pub fn read_all(self) -> Result<CachedInput> {
         CachedInput::new(self)
     }
