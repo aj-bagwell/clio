@@ -360,8 +360,8 @@ impl InputPath {
     {
         let path: ClioPath = path.try_into()?.with_direction(InOut::In);
         if path.is_local() {
-            assert_not_dir(&path)?;
             assert_exists(&path)?;
+            assert_not_dir(&path)?;
             assert_readable(&path)?;
         };
         Ok(InputPath { path })

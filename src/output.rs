@@ -132,7 +132,7 @@ impl Output {
     where
         crate::Error: From<<S as TryInto<ClioPath>>::Error>,
     {
-        OutputPath::new(path)?.create()
+        Output::maybe_with_len(path.try_into()?, None)
     }
 
     /// convert to an normal [`Output`] setting the length of the file to size if it is `Some`
@@ -207,6 +207,7 @@ impl Output {
     pub fn get_file(&mut self) -> Option<&mut File> {
         match &mut self.stream {
             OutputStream::File(file) => Some(file),
+            OutputStream::AtomicFile(file) => Some(file.as_file_mut()),
             _ => None,
         }
     }
@@ -272,12 +273,14 @@ impl OutputPath {
         let path: ClioPath = path.try_into()?.with_direction(InOut::Out);
         if path.is_local() {
             if path.is_file() && !path.atomic {
+                println!("{} is a file", path);
                 assert_writeable(&path)?;
             } else {
-                assert_not_dir(&path)?;
+                #[cfg(target_os = "linux")]
                 if path.ends_with_slash() {
-                    return Err(not_found_error().into());
+                    return Err(crate::dir_error().into());
                 }
+                assert_not_dir(&path)?;
                 if let Some(parent) = path.safe_parent() {
                     assert_is_dir(parent)?;
                     assert_writeable(parent)?;
@@ -342,4 +345,5 @@ fn open_rw(path: &Path) -> io::Result<File> {
         .create(true)
         .truncate(true)
         .open(path)
+        .or_else(|_| File::create(path))
 }

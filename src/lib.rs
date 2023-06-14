@@ -100,7 +100,7 @@ fn is_fifo(metadata: &Metadata) -> bool {
 }
 
 fn assert_exists(path: &Path) -> Result<()> {
-    if !path.exists() {
+    if !path.try_exists()? {
         return Err(not_found_error().into());
     }
     Ok(())
@@ -139,7 +139,7 @@ fn assert_not_dir(path: &ClioPath) -> Result<()> {
         }
     }
     if path.ends_with_slash() {
-        return Err(dir_error().into());
+        return Err(not_found_error().into());
     }
     Ok(())
 }
@@ -282,15 +282,36 @@ pub(crate) use impl_try_from;
 mod tests {
     use super::*;
     use std::{
-        fs::{create_dir, write, File},
+        fs::{create_dir, set_permissions, write, File},
         io::Read,
     };
     use tempfile::{tempdir, TempDir};
+
+    fn set_mode(path: &Path, mode: u32) -> Result<()> {
+        let mut perms = path.metadata()?.permissions();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            perms.set_mode(mode);
+        }
+        #[cfg(not(unix))]
+        {
+            perms.set_readonly((mode & 0o222) == 0);
+        }
+        set_permissions(path, perms)?;
+        Ok(())
+    }
 
     fn temp() -> TempDir {
         let tmp = tempdir().expect("could not make tmp dir");
         create_dir(&tmp.path().join("dir")).expect("could not create dir");
         write(&tmp.path().join("file"), "contents").expect("could not create dir");
+        let ro = tmp.path().join("ro");
+        write(&ro, "contents").expect("could not create ro");
+        set_mode(&ro, 0o400).expect("could make ro read only");
+        let wo = tmp.path().join("wo");
+        write(&wo, "contents").expect("could not create wo");
+        set_mode(&wo, 0o200).expect("could make ro write only");
         tmp
     }
 
@@ -298,7 +319,6 @@ mod tests {
         ($path:ident, $a:ident, $($b:expr),+) => {
             let a = comparable($a);
             $(
-                if (false) {
                 assert_eq!(
                     &a,
                     &comparable($b),
@@ -306,7 +326,6 @@ mod tests {
                     $path, Path::new($path).canonicalize(),
                     stringify!($a != $b)
                 );
-            }
             )+
         };
     }
@@ -317,6 +336,8 @@ mod tests {
         let tmp_w = temp();
         for path in [
             "file",
+            "ro",
+            "wo",
             "file/",
             "dir",
             "dir/",
@@ -342,14 +363,14 @@ mod tests {
         }
     }
 
-    #[cfg(target_os = "macos")]
+    #[cfg(any(target_os = "linux", target_os = "macos"))]
     fn comparable<E: std::fmt::Display, A>(
         a: std::result::Result<A, E>,
     ) -> std::result::Result<&'static str, String> {
         a.map(|_| "Ok").map_err(|e| e.to_string())
     }
 
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(not(any(target_os = "linux", target_os = "macos")))]
     fn comparable<E, A>(a: std::result::Result<A, E>) -> bool {
         a.is_ok()
     }
