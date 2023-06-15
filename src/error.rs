@@ -69,6 +69,12 @@ impl From<IoError> for Error {
     }
 }
 
+impl From<walkdir::Error> for Error {
+    fn from(err: walkdir::Error) -> Self {
+        Error::Io(err.into())
+    }
+}
+
 impl From<Error> for IoError {
     fn from(err: Error) -> Self {
         match err {

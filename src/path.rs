@@ -5,6 +5,7 @@ use std::ffi::{OsStr, OsString};
 use std::fmt::{self, Debug, Display};
 use std::ops::Deref;
 use std::path::{Path, PathBuf};
+use walkdir::WalkDir;
 
 #[cfg(feature = "http")]
 use {
@@ -106,6 +107,14 @@ impl ClioPath {
     pub fn std() -> Self {
         ClioPath {
             path: ClioPathEnum::Std(None),
+            atomic: false,
+        }
+    }
+
+    /// Contructs a new [`ClioPath`] for a local path
+    pub fn local(path: PathBuf) -> Self {
+        ClioPath {
+            path: ClioPathEnum::Local(path),
             atomic: false,
         }
     }
@@ -264,6 +273,39 @@ impl ClioPath {
             } else {
                 self.path().as_os_str().to_string_lossy().ends_with("/")
             }
+        }
+    }
+
+    /// If this is a folder retruns all the files that match the filter found by looking recursivly
+    /// Otherwise returns just this path
+    /// ```no_run
+    /// use clio::has_extension;
+    /// use clio::ClioPath;
+    ///
+    /// let dir = ClioPath::new("/tmp/foo")?;
+    /// for txt_file in dir.files(has_extension("txt"))? {
+    ///     txt_file.open()?;
+    /// }
+    /// # Ok::<(), clio::Error>(())
+    /// ```
+    pub fn files<P>(self, mut predicate: P) -> Result<Vec<ClioPath>>
+    where
+        P: FnMut(&ClioPath) -> bool,
+    {
+        if self.is_local() {
+            let mut result = vec![];
+            for entry in WalkDir::new(self.path()).follow_links(true) {
+                let entry = entry?;
+                if entry.file_type().is_file() {
+                    let path = ClioPath::local(entry.into_path());
+                    if predicate(&path) {
+                        result.push(path);
+                    }
+                }
+            }
+            Ok(result)
+        } else {
+            Ok(vec![self])
         }
     }
 

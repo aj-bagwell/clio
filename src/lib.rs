@@ -85,6 +85,7 @@ pub use crate::output::Output;
 pub use crate::output::OutputPath;
 pub use crate::path::ClioPath;
 
+use std::ffi::OsStr;
 use std::fs::Metadata;
 use std::path::Path;
 
@@ -150,6 +151,38 @@ fn assert_is_dir(path: &Path) -> Result<()> {
         return Err(not_dir_error().into());
     }
     Ok(())
+}
+
+/// A predicate builder for filtering files based on extension
+///
+/// ```no_run
+/// use clio::{ClioPath, has_extension};
+///
+/// let dir = ClioPath::new("/tmp/foo")?;
+/// for txt_file in dir.files(has_extension("txt"))? {
+///     txt_file.open()?;
+/// }
+/// # Ok::<(), clio::Error>(())
+/// ```
+pub fn has_extension<S: AsRef<OsStr>>(ext: S) -> impl Fn(&ClioPath) -> bool {
+    {
+        move |path| path.extension() == Some(ext.as_ref())
+    }
+}
+
+/// A predicate for filtering files that accepts any file
+///
+/// ```no_run
+/// use clio::{ClioPath, any_file};
+///
+/// let dir = ClioPath::new("/tmp/foo")?;
+/// for file in dir.files(any_file)? {
+///     file.open()?;
+/// }
+/// # Ok::<(), clio::Error>(())
+/// ```
+pub fn any_file(_: &ClioPath) -> bool {
+    true
 }
 
 #[cfg(test)]
