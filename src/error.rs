@@ -2,7 +2,6 @@ use std::convert::{From, Infallible};
 use std::ffi::{OsStr, OsString};
 use std::fmt::Display;
 use std::io::Error as IoError;
-#[allow(unused_imports)] // used only in some os/feature combos
 use std::io::ErrorKind;
 use tempfile::PersistError;
 
@@ -27,6 +26,26 @@ pub enum Error {
 /// A result with a [`clio::Error`](Error)
 pub type Result<T> = std::result::Result<T, Error>;
 
+macro_rules! io_error {
+    ($func_name:ident, $unix:ident, $win:ident => ($kind:ident, $des:literal)) => {
+        // When io_error_more graduates from nightly these can use the right kind directly
+        #[cfg(unix)]
+        pub(crate) fn $func_name() -> Error {
+            Error::Io(IoError::from_raw_os_error(libc::$unix))
+        }
+        #[cfg(windows)]
+        pub(crate) fn $func_name() -> Error {
+            Error::Io(IoError::from_raw_os_error(
+                windows_sys::Win32::Foundation::$win as i32,
+            ))
+        }
+        #[cfg(not(any(unix, windows)))]
+        pub(crate) fn $func_name() -> Error {
+            Error::Io(IoError::new(ErrorKind::$kind, $des))
+        }
+    };
+}
+
 impl Error {
     pub(crate) fn to_os_string(&self, path: &OsStr) -> OsString {
         let mut str = OsString::new();
@@ -49,6 +68,16 @@ impl Error {
             },
         }
     }
+
+    pub(crate) fn other(message: &'static str) -> Self {
+        Error::Io(IoError::new(ErrorKind::Other, message))
+    }
+
+    io_error!(seek_error, ESPIPE, ERROR_BROKEN_PIPE => (Other, "Cannot seek on stream"));
+    io_error!(dir_error, EISDIR, ERROR_INVALID_NAME => (PermissionDenied, "Is a directory"));
+    io_error!(not_dir_error, ENOTDIR, ERROR_ACCESS_DENIED => (PermissionDenied, "Is not a Directory"));
+    io_error!(permission_error, EACCES, ERROR_ACCESS_DENIED => (PermissionDenied, "Permission denied"));
+    io_error!(not_found_error, ENOENT, ERROR_FILE_NOT_FOUND => (NotFound, "The system cannot find the path specified."));
 }
 
 impl From<Infallible> for Error {
@@ -106,27 +135,3 @@ impl Display for Error {
         }
     }
 }
-
-macro_rules! io_error {
-    ($func_name:ident, $unix:ident, $win:ident => ($kind:ident, $des:literal)) => {
-        // When io_error_more graduates from nightly these can use the right kind directly
-        #[cfg(unix)]
-        pub(crate) fn $func_name() -> IoError {
-            IoError::from_raw_os_error(libc::$unix)
-        }
-        #[cfg(windows)]
-        pub(crate) fn $func_name() -> IoError {
-            IoError::from_raw_os_error(windows_sys::Win32::Foundation::$win as i32)
-        }
-        #[cfg(not(any(unix, windows)))]
-        pub(crate) fn $func_name() -> IoError {
-            IoError::new(ErrorKind::$kind, $des)
-        }
-    };
-}
-
-io_error!(seek_error, ESPIPE, ERROR_BROKEN_PIPE => (Other, "Cannot seek on stream"));
-io_error!(dir_error, EISDIR, ERROR_INVALID_NAME => (PermissionDenied, "Is a directory"));
-io_error!(not_dir_error, ENOTDIR, ERROR_ACCESS_DENIED => (PermissionDenied, "Is not a Directory"));
-io_error!(permission_error, EACCES, ERROR_ACCESS_DENIED => (PermissionDenied, "Permission denied"));
-io_error!(not_found_error, ENOENT, ERROR_FILE_NOT_FOUND => (NotFound, "The system cannot find the path specified."));

@@ -1,4 +1,3 @@
-use crate::error::{dir_error, seek_error};
 #[cfg(feature = "http")]
 use crate::http::HttpReader;
 use crate::path::{ClioPathEnum, InOut};
@@ -60,7 +59,7 @@ impl Input {
             ClioPathEnum::Local(file_path) => {
                 let file = File::open(file_path)?;
                 if file.metadata()?.is_dir() {
-                    return Err(dir_error().into());
+                    return Err(Error::dir_error());
                 }
                 if is_fifo(&file.metadata()?) {
                     InputStream::Pipe(file)
@@ -175,6 +174,11 @@ impl Input {
         self.path.is_local()
     }
 
+    /// Returns true if this is stdin and it is connected to a tty
+    pub fn is_tty(&self) -> bool {
+        self.is_std() && atty::is(atty::Stream::Stdin)
+    }
+
     /// Returns `true` if this [`Input`] is a file,
     /// and `false` if this [`Input`] is std out or a pipe
     pub fn can_seek(&self) -> bool {
@@ -201,7 +205,7 @@ impl Seek for Input {
         match &mut self.stream {
             InputStream::Pipe(pipe) => pipe.seek(pos),
             InputStream::File(file) => file.seek(pos),
-            _ => Err(seek_error()),
+            _ => Err(Error::seek_error().into()),
         }
     }
 }
@@ -232,14 +236,23 @@ pub struct CachedInput {
 
 impl CachedInput {
     /// Reads all the data from an file (stdin for "-") into memmory and stores it in a new CachedInput.
+    /// If it detects it is trying to read from a TTY then it will return an error.
     ///
     /// Useful if you want to use the input twice (see [reset](Self::reset)), or
     /// need to know the size.
+    ///
+    /// This is mostly a wrapper around `Input::read_all()` so so that any errors
+    /// reading the data will be shown automatically with claps pretty error formating.
     pub fn new<S: TryInto<ClioPath>>(path: S) -> Result<Self>
     where
         crate::Error: From<<S as TryInto<ClioPath>>::Error>,
     {
         let mut source = Input::new(path)?;
+        if source.is_tty() {
+            return Err(Error::other(
+                "blocked reading from stdin because it is a tty",
+            ));
+        }
         let capacity = source.len().unwrap_or(4096) as usize;
         let mut data = Cursor::new(Vec::with_capacity(capacity));
         io::copy(&mut source, &mut data)?;
@@ -388,6 +401,11 @@ impl InputPath {
     /// Returns true if this [`InputPath`] is stdin
     pub fn is_std(&self) -> bool {
         self.path.is_std()
+    }
+
+    /// Returns true if this is stdin and it is connected to a tty
+    pub fn is_tty(&self) -> bool {
+        self.is_std() && atty::is(atty::Stream::Stdin)
     }
 
     /// Returns true if this [`InputPath`] is on the local file system,

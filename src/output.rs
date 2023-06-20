@@ -1,4 +1,3 @@
-use crate::error::{not_found_error, seek_error};
 use crate::path::{ClioPathEnum, InOut};
 use crate::{
     assert_is_dir, assert_not_dir, assert_writeable, impl_try_from, is_fifo, ClioPath, Error,
@@ -104,7 +103,7 @@ impl OutputStream {
                             .tempfile_in(parent)?;
                         OutputStream::AtomicFile(tmp)
                     } else {
-                        return Err(not_found_error().into());
+                        return Err(Error::not_found_error());
                     }
                 } else {
                     let file = open_rw(local_path)?;
@@ -154,6 +153,11 @@ impl Output {
     /// Returns true if this Output is stout
     pub fn is_std(&self) -> bool {
         matches!(self.stream, OutputStream::Stdout(_))
+    }
+
+    /// Returns true if this is stdout and it is connected to a tty
+    pub fn is_tty(&self) -> bool {
+        self.is_std() && atty::is(atty::Stream::Stdout)
     }
 
     /// Returns true if this Output is on the local file system,
@@ -268,7 +272,7 @@ impl Seek for Output {
         match &mut self.stream {
             OutputStream::File(file) => file.seek(pos),
             OutputStream::AtomicFile(file) => file.seek(pos),
-            _ => Err(seek_error()),
+            _ => Err(Error::seek_error().into()),
         }
     }
 }
@@ -289,14 +293,14 @@ impl OutputPath {
             } else {
                 #[cfg(target_os = "linux")]
                 if path.ends_with_slash() {
-                    return Err(crate::dir_error().into());
+                    return Err(Error::dir_error());
                 }
                 assert_not_dir(&path)?;
                 if let Some(parent) = path.safe_parent() {
                     assert_is_dir(parent)?;
                     assert_writeable(parent)?;
                 } else {
-                    return Err(not_found_error().into());
+                    return Err(Error::not_found_error());
                 }
             }
         }
@@ -333,6 +337,11 @@ impl OutputPath {
     /// Returns true if this [`Output`] is stdout
     pub fn is_std(&self) -> bool {
         self.path.is_std()
+    }
+
+    /// Returns true if this is stdout and it is connected to a tty
+    pub fn is_tty(&self) -> bool {
+        self.is_std() && atty::is(atty::Stream::Stdout)
     }
 
     /// Returns true if this [`Output`] is on the local file system,

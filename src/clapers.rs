@@ -3,7 +3,7 @@
 //!
 //! This module is only compiled if you enable the clap-parse feature
 
-use crate::{assert_exists, assert_is_dir, assert_not_dir, not_dir_error, ClioPath, Result};
+use crate::{assert_exists, assert_is_dir, assert_not_dir, ClioPath, Error, Result};
 use clap::builder::TypedValueParser;
 use clap::error::ErrorKind;
 use std::ffi::OsStr;
@@ -15,6 +15,7 @@ pub struct OsStrParser<T> {
     exists: Option<bool>,
     is_dir: Option<bool>,
     is_file: Option<bool>,
+    is_tty: Option<bool>,
     atomic: bool,
     default_name: Option<&'static str>,
     phantom: PhantomData<T>,
@@ -26,6 +27,7 @@ impl<T> OsStrParser<T> {
             exists: None,
             is_dir: None,
             is_file: None,
+            is_tty: None,
             default_name: None,
             atomic: false,
             phantom: PhantomData,
@@ -49,6 +51,12 @@ impl<T> OsStrParser<T> {
     pub fn is_file(mut self) -> Self {
         self.is_dir = None;
         self.is_file = Some(true);
+        self
+    }
+
+    /// If this path is for stdin/stdout theymust be a pipe not a tty
+    pub fn not_tty(mut self) -> Self {
+        self.is_tty = Some(false);
         self
     }
 
@@ -84,7 +92,11 @@ impl<T> OsStrParser<T> {
                 assert_exists(&path)?;
             }
         } else if self.is_dir == Some(true) {
-            return Err(not_dir_error().into());
+            return Err(Error::not_dir_error());
+        } else if self.is_tty == Some(false) && path.is_tty() {
+            return Err(Error::other(
+                "blocked reading from stdin because it is a tty",
+            ));
         }
         Ok(path)
     }

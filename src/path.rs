@@ -236,9 +236,21 @@ impl ClioPath {
         }
     }
 
-    /// Returns true if this path is stdin/stout
+    /// Returns true if this path is stdin/stout i.e. it was created with `-`
     pub fn is_std(&self) -> bool {
         matches!(self.path, ClioPathEnum::Std(_))
+    }
+
+    /// Returns true if this [`is_std`](Self::is_std) and it would connect to a tty
+    pub fn is_tty(&self) -> bool {
+        match self.path {
+            ClioPathEnum::Std(Some(InOut::In)) => atty::is(atty::Stream::Stdin),
+            ClioPathEnum::Std(Some(InOut::Out)) => atty::is(atty::Stream::Stdout),
+            ClioPathEnum::Std(None) => {
+                atty::is(atty::Stream::Stdin) || atty::is(atty::Stream::Stdout)
+            }
+            _ => false,
+        }
     }
 
     /// Returns true if this path is on the local file system,

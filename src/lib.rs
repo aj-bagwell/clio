@@ -41,7 +41,7 @@ fn is_fifo(metadata: &Metadata) -> bool {
 
 fn assert_exists(path: &Path) -> Result<()> {
     if !path.try_exists()? {
-        return Err(not_found_error().into());
+        return Err(Error::not_found_error());
     }
     Ok(())
 }
@@ -56,7 +56,7 @@ fn assert_readable(path: &Path) -> Result<()> {
     use std::os::unix::fs::PermissionsExt;
     let permissions = path.metadata()?.permissions();
     if (permissions.mode() & 0o444) == 0 {
-        return Err(permission_error().into());
+        return Err(Error::permission_error());
     }
     Ok(())
 }
@@ -64,7 +64,7 @@ fn assert_readable(path: &Path) -> Result<()> {
 fn assert_writeable(path: &Path) -> Result<()> {
     let permissions = path.metadata()?.permissions();
     if permissions.readonly() {
-        return Err(permission_error().into());
+        return Err(Error::permission_error());
     }
     Ok(())
 }
@@ -72,14 +72,14 @@ fn assert_writeable(path: &Path) -> Result<()> {
 fn assert_not_dir(path: &ClioPath) -> Result<()> {
     if path.try_exists()? {
         if path.is_dir() {
-            return Err(dir_error().into());
+            return Err(Error::dir_error());
         }
         if path.ends_with_slash() {
-            return Err(not_dir_error().into());
+            return Err(Error::not_dir_error());
         }
     }
     if path.ends_with_slash() {
-        return Err(not_found_error().into());
+        return Err(Error::not_found_error());
     }
     Ok(())
 }
@@ -87,7 +87,7 @@ fn assert_not_dir(path: &ClioPath) -> Result<()> {
 fn assert_is_dir(path: &Path) -> Result<()> {
     assert_exists(path)?;
     if !path.is_dir() {
-        return Err(not_dir_error().into());
+        return Err(Error::not_dir_error());
     }
     Ok(())
 }
@@ -178,6 +178,7 @@ macro_rules! impl_try_from {
                 let s = crate::$struct_name::std();
                 assert!(s.is_std());
                 assert!(!s.is_local());
+                s.is_tty();
                 s.path();
             }
         }
@@ -256,10 +257,6 @@ macro_rules! impl_try_from {
     };
 }
 
-use error::dir_error;
-use error::not_dir_error;
-use error::not_found_error;
-use error::permission_error;
 pub(crate) use impl_try_from;
 
 #[cfg(test)]
