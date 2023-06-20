@@ -169,6 +169,18 @@ macro_rules! impl_try_from {
                 $struct_name::std()
             }
         }
+
+        #[cfg(test)]
+        impl $struct_name {
+            // Check that all clio types have the core methods
+            #[allow(dead_code)]
+            fn test_core_methods() {
+                let s = crate::$struct_name::std();
+                assert!(s.is_std());
+                assert!(!s.is_local());
+                s.path();
+            }
+        }
     };
     ($struct_name:ident TryFrom<ClioPath>) => {
         impl TryFrom<ClioPath> for $struct_name {

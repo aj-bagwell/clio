@@ -164,6 +164,17 @@ impl Input {
         &self.path
     }
 
+    /// Returns true if this [`Input`] reads from stdin
+    pub fn is_std(&self) -> bool {
+        matches!(self.stream, InputStream::Stdin(_))
+    }
+
+    /// Returns true if this [`Input`] points to the local file system,
+    /// as opposed to point to stdin or a URL
+    pub fn is_local(&self) -> bool {
+        self.path.is_local()
+    }
+
     /// Returns `true` if this [`Input`] is a file,
     /// and `false` if this [`Input`] is std out or a pipe
     pub fn can_seek(&self) -> bool {
@@ -372,6 +383,17 @@ impl InputPath {
         InputPath {
             path: ClioPath::std().with_direction(InOut::In),
         }
+    }
+
+    /// Returns true if this [`InputPath`] is stdin
+    pub fn is_std(&self) -> bool {
+        self.path.is_std()
+    }
+
+    /// Returns true if this [`InputPath`] is on the local file system,
+    /// as opposed to point to stdin or a URL
+    pub fn is_local(&self) -> bool {
+        self.path.is_local()
     }
 
     /// Create an [`Input`] by opening the file or for '-' returning stdin.

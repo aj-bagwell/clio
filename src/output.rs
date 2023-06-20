@@ -151,6 +151,17 @@ impl Output {
         }
     }
 
+    /// Returns true if this Output is stout
+    pub fn is_std(&self) -> bool {
+        matches!(self.stream, OutputStream::Stdout(_))
+    }
+
+    /// Returns true if this Output is on the local file system,
+    /// as opposed to point to stdin/stout or a URL
+    pub fn is_local(&self) -> bool {
+        self.path.is_local()
+    }
+
     /// Contructs a new output either by opening/creating the file or for '-' returning stdout
     ///
     /// The error is converted to a [`OsString`](std::ffi::OsString) so that [stuctopt](https://docs.rs/structopt/latest/structopt/#custom-string-parsers) can show it to the user.
@@ -319,20 +330,23 @@ impl OutputPath {
         &self.path
     }
 
+    /// Returns true if this [`Output`] is stdout
+    pub fn is_std(&self) -> bool {
+        self.path.is_std()
+    }
+
+    /// Returns true if this [`Output`] is on the local file system,
+    /// as opposed to point to stout or a URL
+    pub fn is_local(&self) -> bool {
+        self.path.is_local()
+    }
+
     /// Returns `true` if this [`OutputPath`] points to a file,
     /// and `false` if this [`OutputPath`] is std out or points to a pipe.
     /// Note that the file is not opened yet, so there are possible when you
     /// open the file it might have changed.
     pub fn can_seek(&self) -> bool {
-        if self.path.is_local() {
-            if let Ok(metadata) = self.path.metadata() {
-                !is_fifo(&metadata)
-            } else {
-                false
-            }
-        } else {
-            false
-        }
+        self.path.is_local() && !self.path.is_fifo()
     }
 }
 

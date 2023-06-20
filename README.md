@@ -107,10 +107,10 @@ adds a bad implmentation of [`Clone`] to all types as well to keep `clap` happy.
 
 ## HTTP Client
 
-If a url is passed to [`Input::new`](crate::Input::new) then it will perform and HTTP `GET`.
+If a url is passed to [`Input::new`](crate::Input::new) then it will perform and HTTP `GET`. This has the advantage vs just piping in the output of curl as you know the input size, and can infer related urls, e.g. get the `Cargo.lock` to match the `Cargo.toml`.
 
 If a url is passed to [`Output::new`](crate::Output::new) then it will perform and HTTP `PUT`.
-You can use [`OutputPath::create_with_len`](crate::OutputPath::create_with_len) to set the size before the upload starts e.g.
+The main advantage over just piping to curl is you can use [`OutputPath::create_with_len`](crate::OutputPath::create_with_len) to set the size before the upload starts e.g.
 needed if you are sending a file to S3.
 
 ### `http-ureq`

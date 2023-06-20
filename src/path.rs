@@ -236,6 +236,11 @@ impl ClioPath {
         }
     }
 
+    /// Returns true if this path is stdin/stout
+    pub fn is_std(&self) -> bool {
+        matches!(self.path, ClioPathEnum::Std(_))
+    }
+
     /// Returns true if this path is on the local file system,
     /// as opposed to point to stdin/stout or a URL
     pub fn is_local(&self) -> bool {
