@@ -128,6 +128,25 @@ impl ClioPath {
             atomic: self.atomic,
         }
     }
+
+    pub(crate) fn with_path_mut<F, O>(&mut self, update: F) -> O
+    where
+        O: Default,
+        F: FnOnce(&mut PathBuf) -> O,
+    {
+        match &mut self.path {
+            ClioPathEnum::Std(_) => O::default(),
+            ClioPathEnum::Local(path) => update(path),
+            #[cfg(feature = "http")]
+            ClioPathEnum::Http(url) => {
+                let mut path = Path::new(url.path()).to_owned();
+                let r = update(&mut path);
+                url.set_path(&path.to_string_lossy());
+                r
+            }
+        }
+    }
+
     /// Updates [`self.file_name`](Path::file_name) to `file_name`.
     ///
     /// see [`PathBuf::set_file_name`] for more details
@@ -153,16 +172,7 @@ impl ClioPath {
     /// # Ok::<(), clio::Error>(())
     /// ```
     pub fn set_file_name<S: AsRef<OsStr>>(&mut self, file_name: S) {
-        match &mut self.path {
-            ClioPathEnum::Std(_) => (),
-            ClioPathEnum::Local(path) => path.set_file_name(file_name),
-            #[cfg(feature = "http")]
-            ClioPathEnum::Http(url) => {
-                let mut path = Path::new(url.path()).to_owned();
-                path.set_file_name(file_name);
-                url.set_path(&path.to_string_lossy());
-            }
-        }
+        self.with_path_mut(|path| path.set_file_name(file_name))
     }
 
     /// Updates [`self.extension`](Path::extension) to `extension`.
@@ -191,16 +201,32 @@ impl ClioPath {
     /// # Ok::<(), clio::Error>(())
     /// ```
     pub fn set_extension<S: AsRef<OsStr>>(&mut self, extension: S) -> bool {
-        match &mut self.path {
-            ClioPathEnum::Std(_) => false,
-            ClioPathEnum::Local(path) => path.set_extension(extension),
-            #[cfg(feature = "http")]
-            ClioPathEnum::Http(url) => {
-                let mut path = Path::new(url.path()).to_owned();
-                let r = path.set_extension(extension);
-                url.set_path(&path.to_string_lossy());
-                r
-            }
+        self.with_path_mut(|path| path.set_extension(extension))
+    }
+
+    /// Adds an extention to the end of the [`self.file_name`](Path::file_name).
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use clio::ClioPath;
+    ///
+    /// let mut p = ClioPath::new("/tmp/log.txt")?;
+    ///
+    /// p.add_extension("gz");
+    /// assert_eq!(ClioPath::new("/tmp/log.txt.gz")?, p);
+    /// # Ok::<(), clio::Error>(())
+    /// ```
+    pub fn add_extension<S: AsRef<OsStr>>(&mut self, extension: S) -> bool {
+        if self.file_name().is_some() && !self.ends_with_slash() {
+            self.with_path_mut(|path| {
+                let pathstr = path.as_mut_os_string();
+                pathstr.push(".");
+                pathstr.push(extension);
+            });
+            true
+        } else {
+            false
         }
     }
 
