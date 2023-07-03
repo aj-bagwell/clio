@@ -103,7 +103,7 @@ impl ClioPath {
         })
     }
 
-    /// Contructs a new [`ClioPath`] of `"-"` for stdout
+    /// Constructs a new [`ClioPath`] of `"-"` for stdout
     pub fn std() -> Self {
         ClioPath {
             path: ClioPathEnum::Std(None),
@@ -111,7 +111,7 @@ impl ClioPath {
         }
     }
 
-    /// Contructs a new [`ClioPath`] for a local path
+    /// Constructs a new [`ClioPath`] for a local path
     pub fn local(path: PathBuf) -> Self {
         ClioPath {
             path: ClioPathEnum::Local(path),
@@ -204,7 +204,7 @@ impl ClioPath {
         self.with_path_mut(|path| path.set_extension(extension))
     }
 
-    /// Adds an extention to the end of the [`self.file_name`](Path::file_name).
+    /// Adds an extension to the end of the [`self.file_name`](Path::file_name).
     ///
     /// # Examples
     ///
@@ -319,7 +319,7 @@ impl ClioPath {
         }
     }
 
-    /// If this is a folder retruns all the files that match the filter found by looking recursivly
+    /// If this is a folder returns all the files that match the filter found by looking recursively
     /// Otherwise returns just this path
     /// ```no_run
     /// use clio::has_extension;
@@ -352,7 +352,7 @@ impl ClioPath {
         }
     }
 
-    /// Creater the file with a predetermined length, either using [`File::set_len`](std::fs::File::set_len) or as the `content-length` header of the http put
+    /// Create the file with a predetermined length, either using [`File::set_len`](std::fs::File::set_len) or as the `content-length` header of the http put
     pub fn create_with_len(self, size: u64) -> Result<Output> {
         Output::maybe_with_len(self, Some(size))
     }
@@ -374,7 +374,7 @@ impl ClioPath {
 
     /// A path represented by this [`ClioPath`]
     /// If it is `-` and it is no known if it is in or out then the path will be `-`
-    /// If it is `-` and it is known to be in/out then it will be the psedodevice  e.g `/dev/stdin`
+    /// If it is `-` and it is known to be in/out then it will be the pseudo device  e.g `/dev/stdin`
     /// If it is a url it will be the path part of the url
     /// ```
     /// use clio::{ClioPath, OutputPath};

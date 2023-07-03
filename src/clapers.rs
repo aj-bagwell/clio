@@ -54,7 +54,7 @@ impl<T> OsStrParser<T> {
         self
     }
 
-    /// If this path is for stdin/stdout theymust be a pipe not a tty
+    /// If this path is for stdin/stdout they must be a pipe not a tty
     pub fn not_tty(mut self) -> Self {
         self.is_tty = Some(false);
         self
@@ -144,7 +144,7 @@ impl TypedValueParser for OsStrParser<ClioPath> {
                 ErrorKind::InvalidValue,
                 if let Some(arg) = arg {
                     format!(
-                        "Invalid value for {}: Inlalid path {:?}: {}",
+                        "Invalid value for {}: Invalid path {:?}: {}",
                         arg, value, orig
                     )
                 } else {
