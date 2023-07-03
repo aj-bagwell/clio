@@ -217,6 +217,7 @@ impl ClioPath {
     /// assert_eq!(ClioPath::new("/tmp/log.txt.gz")?, p);
     /// # Ok::<(), clio::Error>(())
     /// ```
+    #[rustversion::since(1.70)]
     pub fn add_extension<S: AsRef<OsStr>>(&mut self, extension: S) -> bool {
         if self.file_name().is_some() && !self.ends_with_slash() {
             self.with_path_mut(|path| {
@@ -224,6 +225,32 @@ impl ClioPath {
                 pathstr.push(".");
                 pathstr.push(extension);
             });
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Adds an extension to the end of the [`self.file_name`](Path::file_name).
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use clio::ClioPath;
+    ///
+    /// let mut p = ClioPath::new("/tmp/log.txt")?;
+    ///
+    /// p.add_extension("gz");
+    /// assert_eq!(ClioPath::new("/tmp/log.txt.gz")?, p);
+    /// # Ok::<(), clio::Error>(())
+    /// ```
+    #[rustversion::before(1.70)]
+    pub fn add_extension<S: AsRef<OsStr>>(&mut self, extension: S) -> bool {
+        if self.file_name().is_some() && !self.ends_with_slash() {
+            let mut existing: OsString = self.extension().unwrap_or_default().to_os_string();
+            existing.push(".");
+            existing.push(extension);
+            self.with_path_mut(|path| path.set_extension(existing));
             true
         } else {
             false
