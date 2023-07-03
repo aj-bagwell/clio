@@ -22,6 +22,14 @@ jobs:
       run: cargo +nightly doc --features http-ureq,clap-parse
       env:
         RUSTDOCFLAGS: --cfg docsrs
+
+    - uses: baptiste0928/cargo-install@v2
+      with:
+        crate: cargo-msrv
+        version: "^0.5"
+    - name: Verify minimum rust version
+      run: cargo msrv verify
+
   build:
     name: Test on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}-latest
@@ -44,9 +52,3 @@ jobs:
       run: cargo test
     - name: Run clap & curl tests
       run: cargo test --features http-curl,clap-parse
-
-    - uses: baptiste0928/cargo-install@v2
-      with:
-        crate: cargo-msrv
-    - name: Verify minimum rust version
-      run: cargo msrv verify
