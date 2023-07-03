@@ -16,11 +16,11 @@ use tempfile::NamedTempFile;
 enum OutputStream {
     /// a [`Stdout`] when the path was `-`
     Stdout(Stdout),
-    /// a [`File`] represeinting the named pipe e.g. crated with `mkfifo`
+    /// a [`File`] representing the named pipe e.g. crated with `mkfifo`
     Pipe(File),
     /// a normal [`File`] opened from the path
     File(File),
-    /// A normal [`File`] opened from the path that will be writted atomically
+    /// A normal [`File`] opened from the path that will be written to atomically
     AtomicFile(NamedTempFile),
     #[cfg(feature = "http")]
     #[cfg_attr(docsrs, doc(cfg(feature = "http")))]
@@ -66,7 +66,7 @@ pub struct Output {
 /// defers creating it until you call the [create](crate::OutputPath::create) method.
 ///
 /// The [create_with_len](crate::OutputPath::create_with_len) allows setting the size before writing.
-/// This is mostly usefull with the "http" feature for setting the Content-Length header
+/// This is mostly useful with the "http" feature for setting the Content-Length header
 ///
 /// It is designed to be used with the [`clap` crate](https://docs.rs/clap/latest) when taking a file name as an
 /// argument to CLI app
@@ -89,7 +89,7 @@ pub struct OutputPath {
 }
 
 impl OutputStream {
-    /// Contructs a new output either by opening/creating the file or for '-' returning stdout
+    /// Constructs a new output either by opening/creating the file or for '-' returning stdout
     fn new(path: &ClioPath, size: Option<u64>) -> Result<Self> {
         Ok(match &path.path {
             ClioPathEnum::Std(_) => OutputStream::Stdout(io::stdout()),
@@ -126,7 +126,7 @@ impl OutputStream {
 }
 
 impl Output {
-    /// Contructs a new output either by opening/creating the file or for '-' returning stdout
+    /// Constructs a new output either by opening/creating the file or for '-' returning stdout
     pub fn new<S: TryInto<ClioPath>>(path: S) -> Result<Self>
     where
         crate::Error: From<<S as TryInto<ClioPath>>::Error>,
@@ -134,7 +134,7 @@ impl Output {
         Output::maybe_with_len(path.try_into()?, None)
     }
 
-    /// convert to an normal [`Output`] setting the length of the file to size if it is `Some`
+    /// Convert to an normal [`Output`] setting the length of the file to size if it is `Some`
     pub(crate) fn maybe_with_len(path: ClioPath, size: Option<u64>) -> Result<Self> {
         Ok(Output {
             stream: OutputStream::new(&path, size)?,
@@ -142,7 +142,7 @@ impl Output {
         })
     }
 
-    /// Contructs a new output for stdout
+    /// Constructs a new output for stdout
     pub fn std() -> Self {
         Output {
             path: ClioPath::std().with_direction(InOut::Out),
@@ -166,11 +166,11 @@ impl Output {
         self.path.is_local()
     }
 
-    /// Contructs a new output either by opening/creating the file or for '-' returning stdout
+    /// Constructs a new output either by opening/creating the file or for '-' returning stdout
     ///
     /// The error is converted to a [`OsString`](std::ffi::OsString) so that [stuctopt](https://docs.rs/structopt/latest/structopt/#custom-string-parsers) can show it to the user.
     ///
-    /// It is recomended that you use [`TryFrom::try_from`] and [clap 3.0](https://docs.rs/clap/latest/clap/index.html) instead.
+    /// It is recommended that you use [`TryFrom::try_from`] and [clap 3.0](https://docs.rs/clap/latest/clap/index.html) instead.
     pub fn try_from_os_str(path: &OsStr) -> std::result::Result<Self, std::ffi::OsString> {
         TryFrom::try_from(path).map_err(|e: Error| e.to_os_string(path))
     }
@@ -194,7 +194,7 @@ impl Output {
     }
 
     /// If the output is std out [locks](std::io::Stdout::lock) it.
-    /// usefull in multithreaded context to write lines consistently
+    /// useful in multithreaded context to write lines consistently
     ///
     /// # Examples
     ///
@@ -307,7 +307,7 @@ impl OutputPath {
         Ok(OutputPath { path })
     }
 
-    /// Contructs a new [`OutputPath`] of `"-"` for stdout
+    /// Constructs a new [`OutputPath`] of `"-"` for stdout
     pub fn std() -> Self {
         OutputPath {
             path: ClioPath::std().with_direction(InOut::Out),
@@ -319,7 +319,7 @@ impl OutputPath {
         Output::maybe_with_len(self.path, size)
     }
 
-    /// Creater the file with a predetermined length, either using [`File::set_len`] or as the `content-length` header of the http put
+    /// Create the file with a predetermined length, either using [`File::set_len`] or as the `content-length` header of the http put
     pub fn create_with_len(self, size: u64) -> Result<Output> {
         self.maybe_with_len(Some(size))
     }

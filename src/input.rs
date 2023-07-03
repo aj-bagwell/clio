@@ -37,7 +37,7 @@ pub struct Input {
 enum InputStream {
     /// a [`Stdin`] when the path was `-`
     Stdin(Stdin),
-    /// a [`File`] represeinting the named pipe e.g. if called with `<(cat /dev/null)`
+    /// a [`File`] representing the named pipe e.g. if called with `<(cat /dev/null)`
     Pipe(File),
     /// a normal [`File`] opened from the path
     File(File),
@@ -48,7 +48,7 @@ enum InputStream {
 }
 
 impl Input {
-    /// Contructs a new input either by opening the file or for '-' returning stdin
+    /// Constructs a new input either by opening the file or for '-' returning stdin
     pub fn new<S: TryInto<ClioPath>>(path: S) -> Result<Self>
     where
         crate::Error: From<<S as TryInto<ClioPath>>::Error>,
@@ -73,7 +73,7 @@ impl Input {
         Ok(Input { path, stream })
     }
 
-    /// Contructs a new input for stdin
+    /// Constructs a new input for stdin
     pub fn std() -> Self {
         Input {
             path: ClioPath::std().with_direction(InOut::In),
@@ -81,11 +81,11 @@ impl Input {
         }
     }
 
-    /// Contructs a new input either by opening the file or for '-' returning stdin
+    /// Constructs a new input either by opening the file or for '-' returning stdin
     ///
     /// The error is converted to a [`OsString`](std::ffi::OsString) so that [stuctopt](https://docs.rs/structopt/latest/structopt/#custom-string-parsers) can show it to the user.
     ///
-    /// It is recomended that you use [`TryFrom::try_from`] and [clap 3.0](https://docs.rs/clap/latest/clap/index.html) instead.
+    /// It is recommended that you use [`TryFrom::try_from`] and [clap 3.0](https://docs.rs/clap/latest/clap/index.html) instead.
     pub fn try_from_os_str(path: &OsStr) -> std::result::Result<Self, std::ffi::OsString> {
         TryFrom::try_from(path).map_err(|e: Error| e.to_os_string(path))
     }
@@ -210,8 +210,8 @@ impl Seek for Input {
     }
 }
 
-/// A struct that contains all the connents of a command line input stream,
-/// either std in or a file
+/// A struct that contains all the components of a command line input stream,
+/// either std in or a file.
 ///
 /// It is designed to be used with the [`clap` crate](https://docs.rs/clap/latest) when taking a file name as an
 /// argument to CLI app
@@ -235,14 +235,14 @@ pub struct CachedInput {
 }
 
 impl CachedInput {
-    /// Reads all the data from an file (stdin for "-") into memmory and stores it in a new CachedInput.
+    /// Reads all the data from an file (stdin for "-") into memory and stores it in a new CachedInput.
     /// If it detects it is trying to read from a TTY then it will return an error.
     ///
     /// Useful if you want to use the input twice (see [reset](Self::reset)), or
     /// need to know the size.
     ///
     /// This is mostly a wrapper around `Input::read_all()` so so that any errors
-    /// reading the data will be shown automatically with claps pretty error formating.
+    /// reading the data will be shown automatically with claps pretty error formatting.
     pub fn new<S: TryInto<ClioPath>>(path: S) -> Result<Self>
     where
         crate::Error: From<<S as TryInto<ClioPath>>::Error>,
@@ -263,19 +263,19 @@ impl CachedInput {
         })
     }
 
-    /// Reads all the data from stdin into memmory and stores it in a new CachedInput.
+    /// Reads all the data from stdin into memory and stores it in a new CachedInput.
     ///
     /// This will block until std in is closed.
     pub fn std() -> Result<Self> {
         Self::new(ClioPath::std().with_direction(InOut::In))
     }
 
-    /// Contructs a new [`CachedInput`] either by opening the file or for '-' stdin and reading
+    /// Constructs a new [`CachedInput`] either by opening the file or for '-' stdin and reading
     /// all the data into memory.
     ///
     /// The error is converted to a [`OsString`](std::ffi::OsString) so that [stuctopt](https://docs.rs/structopt/latest/structopt/#custom-string-parsers) can show it to the user.
     ///
-    /// It is recomended that you use [`TryFrom::try_from`] and [clap 3.0](https://docs.rs/clap/latest/clap/index.html) instead.
+    /// It is recommended that you use [`TryFrom::try_from`] and [clap 3.0](https://docs.rs/clap/latest/clap/index.html) instead.
     pub fn try_from_os_str(path: &OsStr) -> std::result::Result<Self, std::ffi::OsString> {
         TryFrom::try_from(path).map_err(|e: Error| e.to_os_string(path))
     }
@@ -375,7 +375,7 @@ pub struct InputPath {
 }
 
 impl InputPath {
-    /// Contructs a new [`InputPath`] representing the path and checking that the file exists and is readable
+    /// Constructs a new [`InputPath`] representing the path and checking that the file exists and is readable
     ///
     /// note: even if this passes open may still fail if e.g. the file was delete in between
     pub fn new<S: TryInto<ClioPath>>(path: S) -> Result<Self>
@@ -391,7 +391,7 @@ impl InputPath {
         Ok(InputPath { path })
     }
 
-    /// Contructs a new [`InputPath`] to stdout ("-")
+    /// Constructs a new [`InputPath`] to stdout ("-")
     pub fn std() -> Self {
         InputPath {
             path: ClioPath::std().with_direction(InOut::In),
@@ -417,7 +417,7 @@ impl InputPath {
     /// Create an [`Input`] by opening the file or for '-' returning stdin.
     ///
     /// This is unlikely to error as the path is checked when the [`InputPath`] was created by [`new`](InputPath::new)
-    /// but time of use/time of check means that things could have changed inbetween e.g. the file
+    /// but time of use/time of check means that things could have changed in-between e.g. the file
     /// could have been deleted.
     pub fn open(self) -> Result<Input> {
         self.path.open()

@@ -138,12 +138,12 @@ macro_rules! impl_try_from {
         #[cfg(feature = "clap-parse")]
         #[cfg_attr(docsrs, doc(cfg(feature = "clap-parse")))]
         /// Opens a new handle on the file from the path that was used to create it
-        /// Probbably a bad idea to have two write handles to the same file or to std in
+        /// Probably a bad idea to have two write handles to the same file or to std in
         /// There is no effort done to make the clone be at the same position as the original
         ///
         /// This will panic if the file has been deleted
         ///
-        /// Only included when using the `clap-parse` fature as it is needed for `value_parser`
+        /// Only included when using the `clap-parse` feature as it is needed for `value_parser`
         impl Clone for $struct_name {
             fn clone(&self) -> Self {
                 $struct_name::new(self.path().clone()).unwrap()
