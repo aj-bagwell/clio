@@ -16,6 +16,8 @@ jobs:
       with:
           toolchain: nightly
           profile: minimal
+    - name: Spell Check Repo
+      uses: crate-ci/typos@master
     - name: Format
       run: cargo fmt -- --check
     - name: Docs

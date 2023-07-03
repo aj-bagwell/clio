@@ -2,8 +2,8 @@
 
 clio is a rust library for parsing CLI file names.
 
-It implements the standard unix convetions of when the file name is `"-"` then sending the
-data to stdin/stdout as apropriate
+It implements the standard unix conventions of when the file name is `"-"` then sending the
+data to stdin/stdout as appropriate
 
 # Usage
 
@@ -26,9 +26,9 @@ This avoid leaving empty Output files around if you error out very early.
 These check that the path exists, is a file and could in theory be opened when created to get
 nicer error messages from clap. Since that leaves room for TOCTTOU bugs, they will
 still return a [`Err`](std::result::Result::Err) if something has changed when it comes time
-to actualy open the file.
+to actually open the file.
 
-With the `clap-parse` feature they are also desgined to be used with [clap 3.2+](https://docs.rs/clap).
+With the `clap-parse` feature they are also designed to be used with [clap 3.2+](https://docs.rs/clap).
 
 See the [older docs](https://docs.rs/clio/0.2.2/clio/index.html#usage) for examples of older [clap](https://docs.rs/clap)/[structopt](https://docs.rs/structopt)
 
@@ -67,19 +67,19 @@ It's input and output streams have the many of the same features as clio (e.g. '
 
 ## Patharg
 
-If you are as horified as I am by the ammount of code in this crate for what feels like it should have been a very simple task, then [`patharg`](https://docs.rs/patharg) is a much lighter crate that works with clap for treating '-' as stdin/stdout.
+If you are as horified as I am by the amount of code in this crate for what feels like it should have been a very simple task, then [`patharg`](https://docs.rs/patharg) is a much lighter crate that works with clap for treating '-' as stdin/stdout.
 
 It does not open the file, or otherwise validate the path until you ask it avoiding TOCTTOU issues but in the process looses the nice clap error messages.
 
 It also avoids a whole pile of complexity for dealing with seeking and guessing up front if the input supports seeking.
 
-Aslo watch out patharg has no custom clap ValueParser so older versions of clap will convert via a String so path will need to be valid utf-8 which is not guarnatied by linux nor windows.
+Also watch out patharg has no custom clap ValueParser so older versions of clap will convert via a String so path will need to be valid utf-8 which is not guarnatied by linux nor windows.
 
 ## Either
 
 If all you really need is support mapping `'-'` to `stdin()` try this lovely function distilled from [`patharg`](https://docs.rs/patharg).
 
-It works becuase [either](https://docs.rs/either) has helpfuly added `impl`s for many common traits when both sides implement them.
+It works becuase [either](https://docs.rs/either) has helpfully added `impl`s for many common traits when both sides implement them.
 
 ```
     use either::Either;
@@ -96,14 +96,14 @@ It works becuase [either](https://docs.rs/either) has helpfuly added `impl`s for
     }
 ```
 
-The coresponding `create` function is left as an exercise for the reader.
+The corresponding `create` function is left as an exercise for the reader.
 
 # Features
 
 ### `clap-parse`
 
 Implements [`ValueParserFactory`](https://docs.rs/clap/latest/clap/builder/trait.ValueParserFactory.html) for all the types and
-adds a bad implmentation of [`Clone`] to all types as well to keep `clap` happy.
+adds a bad implementation of [`Clone`] to all types as well to keep `clap` happy.
 
 ## HTTP Client
 
