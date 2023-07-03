@@ -44,3 +44,9 @@ jobs:
       run: cargo test
     - name: Run clap & curl tests
       run: cargo test --features http-curl,clap-parse
+
+    - uses: baptiste0928/cargo-install@v2
+      with:
+        crate: cargo-msrv
+    - name: Verify minimum rust version
+      run: cargo msrv verify
