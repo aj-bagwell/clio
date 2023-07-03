@@ -9,7 +9,7 @@ repository = "https://github.com/aj-bagwell/clio"
 documentation = "https://docs.rs/clio"
 readme = "README.md"
 edition = "2021"
-rustversion = "1.63.0"
+rust-version = "1.63.0"
 
 [package.metadata.docs.rs]
 rustdoc-args = ["--cfg", "docsrs"]
@@ -31,7 +31,6 @@ cfg-if = "1.0.0"
 tempfile = "3.3.0"
 walkdir = "2.3.3"
 atty = "0.2.14"
-rustversion = "1.0"
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"
