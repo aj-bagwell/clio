@@ -26,7 +26,6 @@ jobs:
     - uses: baptiste0928/cargo-install@v2
       with:
         crate: cargo-msrv
-        version: "^0.5"
     - name: Verify minimum rust version
       run: cargo msrv verify
 
