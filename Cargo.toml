@@ -9,6 +9,7 @@ repository = "https://github.com/aj-bagwell/clio"
 documentation = "https://docs.rs/clio"
 readme = "README.md"
 edition = "2021"
+rust-version = "1.63.0"
 
 [package.metadata.docs.rs]
 rustdoc-args = ["--cfg", "docsrs"]

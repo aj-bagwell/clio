@@ -217,14 +217,25 @@ impl ClioPath {
     /// assert_eq!(ClioPath::new("/tmp/log.txt.gz")?, p);
     /// # Ok::<(), clio::Error>(())
     /// ```
+    ///
+    /// ```
+    /// use clio::ClioPath;
+    ///
+    /// let mut p = ClioPath::new("/tmp/log")?;
+    /// p.add_extension("gz");
+    /// assert_eq!(ClioPath::new("/tmp/log.gz")?, p);
+    /// # Ok::<(), clio::Error>(())
+    /// ```
     pub fn add_extension<S: AsRef<OsStr>>(&mut self, extension: S) -> bool {
         if self.file_name().is_some() && !self.ends_with_slash() {
-            self.with_path_mut(|path| {
-                let pathstr = path.as_mut_os_string();
-                pathstr.push(".");
-                pathstr.push(extension);
-            });
-            true
+            if let Some(existing) = self.extension() {
+                let mut existing = existing.to_os_string();
+                existing.push(".");
+                existing.push(extension);
+                self.with_path_mut(|path| path.set_extension(existing))
+            } else {
+                self.with_path_mut(|path| path.set_extension(extension))
+            }
         } else {
             false
         }
