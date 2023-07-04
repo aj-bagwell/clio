@@ -261,16 +261,7 @@ impl ClioPath {
     /// # Ok::<(), clio::Error>(())
     /// ```
     pub fn push<P: AsRef<Path>>(&mut self, path: P) {
-        match &mut self.path {
-            ClioPathEnum::Std(_) => (),
-            ClioPathEnum::Local(base) => base.push(path),
-            #[cfg(feature = "http")]
-            ClioPathEnum::Http(url) => {
-                let mut base = Path::new(url.path()).to_owned();
-                base.push(path);
-                url.set_path(&base.to_string_lossy());
-            }
-        }
+        self.with_path_mut(|base| base.push(path))
     }
 
     /// Returns true if this path is stdin/stout i.e. it was created with `-`
