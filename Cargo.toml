@@ -30,7 +30,7 @@ url = { version = "2.3.1", optional = true }
 cfg-if = "1.0.0"
 tempfile = "3.3.0"
 walkdir = "2.3.3"
-atty = "0.2.14"
+is-terminal = "0.4.9"
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"

@@ -4,6 +4,7 @@ use crate::path::{ClioPathEnum, InOut};
 use crate::{
     assert_exists, assert_not_dir, assert_readable, impl_try_from, is_fifo, ClioPath, Error, Result,
 };
+use is_terminal::IsTerminal;
 use std::convert::TryFrom;
 use std::ffi::OsStr;
 use std::fmt::{self, Debug, Display};
@@ -176,7 +177,7 @@ impl Input {
 
     /// Returns true if this is stdin and it is connected to a tty
     pub fn is_tty(&self) -> bool {
-        self.is_std() && atty::is(atty::Stream::Stdin)
+        self.is_std() && std::io::stdin().is_terminal()
     }
 
     /// Returns `true` if this [`Input`] is a file,
@@ -405,7 +406,7 @@ impl InputPath {
 
     /// Returns true if this is stdin and it is connected to a tty
     pub fn is_tty(&self) -> bool {
-        self.is_std() && atty::is(atty::Stream::Stdin)
+        self.is_std() && std::io::stdin().is_terminal()
     }
 
     /// Returns true if this [`InputPath`] is on the local file system,
