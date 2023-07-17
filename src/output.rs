@@ -4,6 +4,7 @@ use crate::{
     Result,
 };
 
+use is_terminal::IsTerminal;
 use std::convert::TryFrom;
 use std::ffi::OsStr;
 use std::fmt::{self, Debug, Display};
@@ -157,7 +158,7 @@ impl Output {
 
     /// Returns true if this is stdout and it is connected to a tty
     pub fn is_tty(&self) -> bool {
-        self.is_std() && atty::is(atty::Stream::Stdout)
+        self.is_std() && std::io::stdout().is_terminal()
     }
 
     /// Returns true if this Output is on the local file system,
@@ -341,7 +342,7 @@ impl OutputPath {
 
     /// Returns true if this is stdout and it is connected to a tty
     pub fn is_tty(&self) -> bool {
-        self.is_std() && atty::is(atty::Stream::Stdout)
+        self.is_std() && std::io::stdout().is_terminal()
     }
 
     /// Returns true if this [`Output`] is on the local file system,

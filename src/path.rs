@@ -1,5 +1,6 @@
 use crate::{impl_try_from, is_fifo, CachedInput, Input, Output, Result};
 
+use is_terminal::IsTerminal;
 use std::convert::TryFrom;
 use std::ffi::{OsStr, OsString};
 use std::fmt::{self, Debug, Display};
@@ -272,10 +273,10 @@ impl ClioPath {
     /// Returns true if this [`is_std`](Self::is_std) and it would connect to a tty
     pub fn is_tty(&self) -> bool {
         match self.path {
-            ClioPathEnum::Std(Some(InOut::In)) => atty::is(atty::Stream::Stdin),
-            ClioPathEnum::Std(Some(InOut::Out)) => atty::is(atty::Stream::Stdout),
+            ClioPathEnum::Std(Some(InOut::In)) => std::io::stdin().is_terminal(),
+            ClioPathEnum::Std(Some(InOut::Out)) => std::io::stdout().is_terminal(),
             ClioPathEnum::Std(None) => {
-                atty::is(atty::Stream::Stdin) || atty::is(atty::Stream::Stdout)
+                std::io::stdin().is_terminal() || std::io::stdout().is_terminal()
             }
             _ => false,
         }
