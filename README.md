@@ -24,7 +24,8 @@ fn main() -> clio::Result<()> {
 If you want to defer opening the file you can use [`InputPath`](crate::InputPath)s and [`OutputPath`](crate::OutputPath)s.
 This avoid leaving empty Output files around if you error out very early.
 These check that the path exists, is a file and could in theory be opened when created to get
-nicer error messages from clap. Since that leaves room for TOCTTOU bugs, they will
+nicer error messages from clap. Since that leaves room for
+[TOCTTOU](https://en.wikipedia.org/wiki/Time-of-check_to_time-of-use) bugs, they will
 still return a [`Err`](std::result::Result::Err) if something has changed when it comes time
 to actually open the file.
 
