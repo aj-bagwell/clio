@@ -43,6 +43,11 @@ fn assert_exists(path: &Path) -> Result<()> {
     if !path.try_exists()? {
         return Err(Error::not_found_error());
     }
+    // if the current working directory has been deleted then it will "exist()"
+    // and have write permissions but you can put files in it or do anything really,
+    if path == Path::new(".") {
+        path.canonicalize()?;
+    }
     Ok(())
 }
 
