@@ -9,7 +9,7 @@ use std::convert::TryFrom;
 use std::ffi::OsStr;
 use std::fmt::{self, Debug, Display};
 use std::fs::{File, OpenOptions};
-use std::io::{self, Result as IoResult, Seek, Stdout, Write};
+use std::io::{self, Result as IoResult, Seek, Stderr, Stdout, Write};
 use std::path::Path;
 use tempfile::NamedTempFile;
 
@@ -17,6 +17,8 @@ use tempfile::NamedTempFile;
 enum OutputStream {
     /// a [`Stdout`] when the path was `-`
     Stdout(Stdout),
+    /// a [`Stderr`]
+    Stderr(Stderr),
     /// a [`File`] representing the named pipe e.g. crated with `mkfifo`
     Pipe(File),
     /// a normal [`File`] opened from the path
@@ -151,6 +153,14 @@ impl Output {
         }
     }
 
+    /// Constructs a new output for stdout
+    pub fn std_err() -> Self {
+        Output {
+            path: ClioPath::std().with_direction(InOut::Out),
+            stream: OutputStream::Stderr(io::stderr()),
+        }
+    }
+
     /// Returns true if this Output is stout
     pub fn is_std(&self) -> bool {
         matches!(self.stream, OutputStream::Stdout(_))
@@ -183,6 +193,7 @@ impl Output {
         self.flush()?;
         match self.stream {
             OutputStream::Stdout(_) => Ok(()),
+            OutputStream::Stderr(_) => Ok(()),
             OutputStream::Pipe(_) => Ok(()),
             OutputStream::File(file) => Ok(file.sync_data()?),
             OutputStream::AtomicFile(tmp) => {
@@ -210,6 +221,7 @@ impl Output {
     pub fn lock<'a>(&'a mut self) -> Box<dyn Write + 'a> {
         match &mut self.stream {
             OutputStream::Stdout(stdout) => Box::new(stdout.lock()),
+            OutputStream::Stderr(stderr) => Box::new(stderr.lock()),
             OutputStream::Pipe(pipe) => Box::new(pipe),
             OutputStream::File(file) => Box::new(file),
             OutputStream::AtomicFile(file) => Box::new(file),
@@ -249,6 +261,7 @@ impl Write for Output {
     fn flush(&mut self) -> IoResult<()> {
         match &mut self.stream {
             OutputStream::Stdout(stdout) => stdout.flush(),
+            OutputStream::Stderr(stderr) => stderr.flush(),
             OutputStream::Pipe(pipe) => pipe.flush(),
             OutputStream::File(file) => file.flush(),
             OutputStream::AtomicFile(file) => file.flush(),
@@ -259,6 +272,7 @@ impl Write for Output {
     fn write(&mut self, buf: &[u8]) -> IoResult<usize> {
         match &mut self.stream {
             OutputStream::Stdout(stdout) => stdout.write(buf),
+            OutputStream::Stderr(stderr) => stderr.write(buf),
             OutputStream::Pipe(pipe) => pipe.write(buf),
             OutputStream::File(file) => file.write(buf),
             OutputStream::AtomicFile(file) => file.write(buf),

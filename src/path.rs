@@ -265,6 +265,35 @@ impl ClioPath {
         self.with_path_mut(|base| base.push(path))
     }
 
+    /// Creates an owned [`PathBuf`] with `path` adjoined to `self`.
+    ///
+    /// If `path` is absolute, it replaces the current path.
+    ///
+    /// See [`PathBuf::push`] for more details on what it means to adjoin a path.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use clio::ClioPath;
+    ///
+    /// assert_eq!(ClioPath::new("/etc")?.join("passwd"), ClioPath::new("/etc/passwd")?);
+    /// assert_eq!(ClioPath::new("/etc")?.join("/bin/sh"), ClioPath::new("/bin/sh")?);
+    ///
+    /// #[cfg(feature = "http")] {
+    ///     let mut p = ClioPath::new("https://example.com/tmp?x=y#p2")?;
+    ///     p.push("file.bk");
+    ///     assert_eq!(
+    ///         ClioPath::new("https://example.com/tmp?x=y#p2")?.join("file.bk"),
+    ///         ClioPath::new("https://example.com/tmp/file.bk?x=y#p2")?);
+    /// }
+    /// # Ok::<(), clio::Error>(())
+    /// ```
+    pub fn join<P: AsRef<Path>>(&mut self, path: P) -> Self {
+        let mut new = self.clone();
+        new.push(path);
+        new
+    }
+
     /// Returns true if this path is stdin/stout i.e. it was created with `-`
     pub fn is_std(&self) -> bool {
         matches!(self.path, ClioPathEnum::Std(_))

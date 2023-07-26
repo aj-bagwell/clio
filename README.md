@@ -3,7 +3,9 @@
 clio is a rust library for parsing CLI file names.
 
 It implements the standard unix conventions of when the file name is `"-"` then sending the
-data to stdin/stdout as appropriate
+data to stdin/stdout as appropriate. With the [`clap-parse`](#clap-parse) feature
+it also adds a bunch of useful filters to validate paths from command line parameters,
+e.g. it exists or is/isn't a directory.
 
 # Usage
 
@@ -29,7 +31,7 @@ nicer error messages from clap. Since that leaves room for
 still return a [`Err`](std::result::Result::Err) if something has changed when it comes time
 to actually open the file.
 
-With the `clap-parse` feature they are also designed to be used with [clap 3.2+](https://docs.rs/clap).
+With the [`clap-parse`](#clap-parse) feature they are also designed to be used with [clap 3.2+](https://docs.rs/clap).
 
 See the [older docs](https://docs.rs/clio/0.2.2/clio/index.html#usage) for examples of older [clap](https://docs.rs/clap)/[structopt](https://docs.rs/structopt)
 
@@ -37,6 +39,7 @@ See the [older docs](https://docs.rs/clio/0.2.2/clio/index.html#usage) for examp
 # #[cfg(feature="clap-parse")]{
 use clap::Parser;
 use clio::*;
+use std::io::Write;
 
 #[derive(Parser)]
 #[clap(name = "cat")]
@@ -48,12 +51,21 @@ struct Opt {
     /// Output file '-' for stdout
     #[clap(long, short, value_parser, default_value="-")]
     output: Output,
+
+    /// Directory to store log files in
+    #[clap(long, short, value_parser = clap::value_parser!(ClioPath).exists().is_dir(), default_value = ".")]
+    log_dir: ClioPath,
 }
 
 fn main() {
     let mut opt = Opt::parse();
 
-    std::io::copy(&mut opt.input, &mut opt.output).unwrap();
+    let mut log = opt.log_dir.join("cat.log").create().unwrap_or(Output::std_err());
+
+    match std::io::copy(&mut opt.input, &mut opt.output) {
+        Ok(len) => writeln!(log, "Copied {} bytes", len),
+        Err(e) => writeln!(log, "Error {:?}", e),
+    };
 }
 # }
 ```
@@ -70,7 +82,7 @@ It's input and output streams have the many of the same features as clio (e.g. '
 
 If you are as horified as I am by the amount of code in this crate for what feels like it should have been a very simple task, then [`patharg`](https://docs.rs/patharg) is a much lighter crate that works with clap for treating '-' as stdin/stdout.
 
-It does not open the file, or otherwise validate the path until you ask it avoiding TOCTTOU issues but in the process looses the nice clap error messages.
+It does not open the file, or otherwise validate the path until you ask it avoiding [TOCTTOU](https://en.wikipedia.org/wiki/Time-of-check_to_time-of-use) issues but in the process looses the nice clap error messages.
 
 It also avoids a whole pile of complexity for dealing with seeking and guessing up front if the input supports seeking.
 
