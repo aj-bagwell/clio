@@ -265,7 +265,7 @@ impl ClioPath {
         self.with_path_mut(|base| base.push(path))
     }
 
-    /// Creates an owned [`PathBuf`] with `path` adjoined to `self`.
+    /// Creates an owned [`ClioPath`] with `path` adjoined to `self`.
     ///
     /// If `path` is absolute, it replaces the current path.
     ///

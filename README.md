@@ -92,7 +92,7 @@ Also watch out patharg has no custom clap ValueParser so older versions of clap 
 
 If all you really need is support mapping `'-'` to `stdin()` try this lovely function distilled from [`patharg`](https://docs.rs/patharg).
 
-It works becuase [either](https://docs.rs/either) has helpfully added `impl`s for many common traits when both sides implement them.
+It works because [either](https://docs.rs/either) has helpfully added `impl`s for many common traits when both sides implement them.
 
 ```rust
     use either::Either;
