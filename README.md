@@ -15,7 +15,7 @@ They will error if the file cannot be opened for any reason
 ```rust
 // a cat replacement
 fn main() -> clio::Result<()> {
-    for arg in std::env::args_os() {
+    for arg in std::env::args_os().skip(1) {
         let mut input = clio::Input::new(&arg)?;
         std::io::copy(&mut input, &mut std::io::stdout())?;
     }
