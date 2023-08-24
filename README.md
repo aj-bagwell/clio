@@ -12,7 +12,7 @@ e.g. it exists or is/isn't a directory.
 [`Input`](crate::Input)s and [`Output`](crate::Input)s can be created directly from args in [`args_os`](std::env::args_os).
 They will error if the file cannot be opened for any reason
 
-```
+```rust
 // a cat replacement
 fn main() -> clio::Result<()> {
     for arg in std::env::args_os() {
@@ -35,7 +35,7 @@ With the [`clap-parse`](#clap-parse) feature they are also designed to be used w
 
 See the [older docs](https://docs.rs/clio/0.2.2/clio/index.html#usage) for examples of older [clap](https://docs.rs/clap)/[structopt](https://docs.rs/structopt)
 
-```
+```rust
 # #[cfg(feature="clap-parse")]{
 use clap::Parser;
 use clio::*;
@@ -94,7 +94,7 @@ If all you really need is support mapping `'-'` to `stdin()` try this lovely fun
 
 It works becuase [either](https://docs.rs/either) has helpfully added `impl`s for many common traits when both sides implement them.
 
-```
+```rust
     use either::Either;
     use std::io;
     use std::ffi::OsStr;
