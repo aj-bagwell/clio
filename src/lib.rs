@@ -2,6 +2,7 @@
 #![forbid(missing_docs)]
 #![warn(clippy::all)]
 #![deny(warnings)]
+#![deny(clippy::print_stdout)]
 #![allow(clippy::needless_doctest_main)]
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![doc = include_str!("../README.md")]
