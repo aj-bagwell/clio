@@ -1,9 +1,9 @@
 use crate::{impl_try_from, is_fifo, CachedInput, Input, Output, Result};
 
-use is_terminal::IsTerminal;
 use std::convert::TryFrom;
 use std::ffi::{OsStr, OsString};
 use std::fmt::{self, Debug, Display};
+use std::io::IsTerminal;
 use std::ops::Deref;
 use std::path::{Path, PathBuf};
 use walkdir::WalkDir;

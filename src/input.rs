@@ -4,12 +4,13 @@ use crate::path::{ClioPathEnum, InOut};
 use crate::{
     assert_exists, assert_not_dir, assert_readable, impl_try_from, is_fifo, ClioPath, Error, Result,
 };
-use is_terminal::IsTerminal;
 use std::convert::TryFrom;
 use std::ffi::OsStr;
 use std::fmt::{self, Debug, Display};
 use std::fs::File;
-use std::io::{self, BufRead, BufReader, Cursor, Read, Result as IoResult, Seek, Stdin};
+use std::io::{
+    self, BufRead, BufReader, Cursor, IsTerminal, Read, Result as IoResult, Seek, Stdin,
+};
 
 /// An enum that represents a command line input stream,
 /// either [`Stdin`] or [`File`]

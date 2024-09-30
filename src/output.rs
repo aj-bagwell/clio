@@ -4,12 +4,11 @@ use crate::{
     Result,
 };
 
-use is_terminal::IsTerminal;
 use std::convert::TryFrom;
 use std::ffi::OsStr;
 use std::fmt::{self, Debug, Display};
 use std::fs::{File, OpenOptions};
-use std::io::{self, Result as IoResult, Seek, Stderr, Stdout, Write};
+use std::io::{self, IsTerminal, Result as IoResult, Seek, Stderr, Stdout, Write};
 use std::path::Path;
 use tempfile::NamedTempFile;
 

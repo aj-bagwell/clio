@@ -9,7 +9,7 @@ repository = "https://github.com/aj-bagwell/clio"
 documentation = "https://docs.rs/clio"
 readme = "README.md"
 edition = "2021"
-rust-version = "1.63.0"
+rust-version = "1.70.0"
 
 [package.metadata.docs.rs]
 rustdoc-args = ["--cfg", "docsrs"]
@@ -25,12 +25,11 @@ clap-parse = ["clap"]
 curl = { version = "0.4", optional = true }
 ureq = { version = "2.0", optional = true }
 pipe = { version = "0.4", optional = true }
-clap = { version = ">=3.2, < 5.0", features = ["derive"], optional = true}
+clap = { version = ">=3.2, < 5.0", features = ["derive"], optional = true }
 url = { version = "2.3.1", optional = true }
 cfg-if = "1.0.0"
 tempfile = "3.3.0"
 walkdir = "2.3.3"
-is-terminal = "0.4.9"
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"
