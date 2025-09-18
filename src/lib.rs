@@ -244,7 +244,7 @@ macro_rules! impl_try_from {
         /// formats as the path it was created from
         impl Display for $struct_name {
             fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
-                write!(fmt, "{:?}", self.path().as_os_str())
+                write!(fmt, "{}", self.path().to_string_lossy())
             }
         }
 

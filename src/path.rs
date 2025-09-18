@@ -1,6 +1,7 @@
 use crate::{impl_try_from, is_fifo, CachedInput, Input, Output, Result};
 
 use is_terminal::IsTerminal;
+use std::borrow::Cow;
 use std::convert::TryFrom;
 use std::ffi::{OsStr, OsString};
 use std::fmt::{self, Debug, Display};
@@ -449,6 +450,31 @@ impl ClioPath {
                 }
             }
             _ => None,
+        }
+    }
+    /// Converts a `Path` to a [`Cow<str>`].
+    ///
+    /// stdin/stdout return `-` and any invalid unicode are replaced with
+    /// [�](std::char::REPLACEMENT_CHARACTER)
+    ///
+    /// See [`std::path::Path::to_string_lossy`] for details
+    ///
+    /// ```
+    /// use clio::{ClioPath};
+    ///
+    /// let path = ClioPath::std();
+    /// assert_eq!(path.to_string_lossy(), "-");
+    ///
+    /// let path = ClioPath::new("foo.txt")?;
+    /// assert_eq!(path.to_string_lossy(), "foo.txt");
+    /// # Ok::<(), clio::Error>(())
+    /// ```
+    pub fn to_string_lossy(&self) -> Cow<'_, str> {
+        match &self.path {
+            ClioPathEnum::Std(_) => Cow::Borrowed("-"),
+            ClioPathEnum::Local(path) => path.to_string_lossy(),
+            #[cfg(feature = "http")]
+            ClioPathEnum::Http(url) => Cow::Borrowed(url.as_str()),
         }
     }
 

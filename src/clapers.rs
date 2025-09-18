@@ -266,4 +266,14 @@ mod tests {
             "default.txt"
         );
     }
+
+    #[test]
+    fn test_round_trip() {
+        use crate::Input;
+        let stdin = Input::std();
+        let arg = stdin.to_string();
+        println!("{:?}", arg);
+        let parsed = Input::try_from(arg.as_str()).unwrap();
+        assert!(parsed.is_std())
+    }
 }
