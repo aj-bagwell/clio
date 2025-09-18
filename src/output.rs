@@ -383,4 +383,14 @@ fn open_rw(path: &Path) -> io::Result<File> {
         .truncate(true)
         .open(path)
         .or_else(|_| File::create(path))
+        .or_else(|_| open_w(path))
+}
+
+fn open_w(path: &Path) -> io::Result<File> {
+    OpenOptions::new()
+        .read(false)
+        .write(true)
+        .create(false)
+        .truncate(false)
+        .open(path)
 }
