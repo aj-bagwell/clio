@@ -382,5 +382,15 @@ fn open_rw(path: &Path) -> io::Result<File> {
         .create(true)
         .truncate(true)
         .open(path)
+        .or_else(|_| open_w(path))
         .or_else(|_| File::create(path))
+}
+
+fn open_w(path: &Path) -> io::Result<File> {
+    OpenOptions::new()
+        .read(false)
+        .write(true)
+        .create(false)
+        .truncate(false)
+        .open(path)
 }
