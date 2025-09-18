@@ -302,7 +302,8 @@ impl OutputPath {
     {
         let path: ClioPath = path.try_into()?.with_direction(InOut::Out);
         if path.is_local() {
-            if path.is_file() && !path.atomic {
+            if path.exists() && !path.atomic {
+                assert_not_dir(&path)?;
                 assert_writeable(&path)?;
             } else {
                 #[cfg(target_os = "linux")]
