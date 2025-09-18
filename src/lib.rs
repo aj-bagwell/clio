@@ -130,8 +130,8 @@ pub fn any_file(_: &ClioPath) -> bool {
     true
 }
 
-#[cfg(test)]
-#[cfg(feature = "clap-parse")]
+#[cfg(all(test, feature = "clap-parse"))]
+#[allow(dead_code)]
 /// Trait to throw compile errors if a type will not be supported by clap
 trait Parseable: Clone + Sync + Send {}
 
@@ -257,8 +257,7 @@ macro_rules! impl_try_from {
             }
         }
 
-        #[cfg(test)]
-        #[cfg(feature = "clap-parse")]
+        #[cfg(all(test, feature = "clap-parse"))]
         impl crate::Parseable for $struct_name {}
     };
 }
