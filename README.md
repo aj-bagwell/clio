@@ -9,7 +9,7 @@ e.g. it exists or is/isn't a directory.
 
 # Usage
 
-[`Input`](crate::Input)s and [`Output`](crate::Input)s can be created directly from args in [`args_os`](std::env::args_os).
+[`Input`]s and [`Output`]s can be created directly from args in [`args_os`](std::env::args_os).
 They will error if the file cannot be opened for any reason
 
 ```rust
@@ -23,12 +23,12 @@ fn main() -> clio::Result<()> {
 }
 ```
 
-If you want to defer opening the file you can use [`InputPath`](crate::InputPath)s and [`OutputPath`](crate::OutputPath)s.
+If you want to defer opening the file you can use [`InputPath`]s and [`OutputPath`]s.
 This avoid leaving empty Output files around if you error out very early.
 These check that the path exists, is a file and could in theory be opened when created to get
 nicer error messages from clap. Since that leaves room for
 [TOCTTOU](https://en.wikipedia.org/wiki/Time-of-check_to_time-of-use) bugs, they will
-still return a [`Err`](std::result::Result::Err) if something has changed when it comes time
+still return a [`Err`] if something has changed when it comes time
 to actually open the file.
 
 With the [`clap-parse`](#clap-parse) feature they are also designed to be used with [clap 3.2+](https://docs.rs/clap).
