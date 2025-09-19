@@ -131,7 +131,7 @@ impl Display for Error {
         match self {
             Error::Io(err) => err.fmt(f),
             #[cfg(feature = "http")]
-            Error::Http { code, message } => write!(f, "{}: {}", code, message),
+            Error::Http { code, message } => write!(f, "{code}: {message}"),
         }
     }
 }

@@ -36,7 +36,7 @@ impl HttpWriter {
                 connected = true;
             }
             let len = read.read(into).unwrap();
-            eprintln!("read: {}", len);
+            eprintln!("read: {len}");
             Ok(len)
         })?;
         spawn(move || {

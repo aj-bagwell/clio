@@ -119,12 +119,9 @@ where
             cmd.clone().error(
                 ErrorKind::InvalidValue,
                 if let Some(arg) = arg {
-                    format!(
-                        "Invalid value for {}: Could not open {:?}: {}",
-                        arg, value, orig
-                    )
+                    format!("Invalid value for {arg}: Could not open {value:?}: {orig}",)
                 } else {
-                    format!("Could not open {:?}: {}", value, orig)
+                    format!("Could not open {value:?}: {orig}")
                 },
             )
         })
@@ -143,12 +140,9 @@ impl TypedValueParser for OsStrParser<ClioPath> {
             cmd.clone().error(
                 ErrorKind::InvalidValue,
                 if let Some(arg) = arg {
-                    format!(
-                        "Invalid value for {}: Invalid path {:?}: {}",
-                        arg, value, orig
-                    )
+                    format!("Invalid value for {arg}: Invalid path {value:?}: {orig}",)
                 } else {
-                    format!("Invalid path {:?}: {}", value, orig)
+                    format!("Invalid path {value:?}: {orig}")
                 },
             )
         })
